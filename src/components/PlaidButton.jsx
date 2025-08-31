@@ -16,7 +16,7 @@ import React, { useState } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import Button from "@mui/material/Button";
 import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
-import { toRecurringItems } from "../utils/precurring-data-formatter";
+import { toRecurringItems } from "../utils/recurring-data-formatter";
 
 
 /**
