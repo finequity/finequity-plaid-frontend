@@ -135,7 +135,6 @@ const LinkPage = () => {
                 ) : linkToken ? (
                     <div style={{ display: "grid", placeItems: "center", padding: "48px 16px" }}>
                         <div style={{ textAlign: "center" }}>
-                            <h2 style={{ margin: 0, marginBottom: 12 }}>Connect Your Bank</h2>
                             <PlaidButton linkToken={linkToken} userId={userId} onData={handlePlaidData} />
                         </div>
                     </div>
