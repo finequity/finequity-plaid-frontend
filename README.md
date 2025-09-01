@@ -1,6 +1,6 @@
-# finEQUITY – Recurring Subscriptions UI (React + Plaid + Glide)
+# finEQUITY – Recurring Subscriptions UI (Glide + Plaid + Pipedream + React)
 
-A small React interface that lets a user connect a bank via **Plaid** and view **recurring transactions / subscriptions** in a clean, responsive UI. It’s written to be approachable for non-programmers, with clear setup steps, caching to reduce API cost, and guidance for Glide integration so the correct user’s data is always shown.
+A React interface that lets a user connect a bank via **Plaid** and view **recurring transactions / subscriptions** in a clean, responsive UI. It’s written to be approachable for non-programmers, with clear setup steps, caching to reduce API cost, and guidance for Glide integration so the correct user’s data is always shown.
 
 ---
 
