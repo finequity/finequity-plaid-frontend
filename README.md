@@ -14,8 +14,6 @@ A React interface that lets a user connect a bank via **Plaid** and view **recur
 - [Technologies Used & How They’re Set Up](#technologies-used--how-theyre-set-up)
 - [Troubleshooting](#troubleshooting)
 - [Security Notes](#security-notes)
-- [Extending the App](#extending-the-app)
-- [Quick Command Cheatsheet](#quick-command-cheatsheet)
 
 ---
 
@@ -139,6 +137,11 @@ const cacheKey = (uid) => `recurring_cache_v1:${uid}`;
 - A Plaid account
 - Pipedream account and workflow setups for **retrieving subscription data** and **exchanging public token for access token**
 
+### Clone repository
+```bash
+git clone https://github.com/finequity/finequity-plaid-frontend.git
+```
+
 ### Install all package modules
 ```bash
 npm install
@@ -149,179 +152,55 @@ npm install
 npm start
 ```
 
-### Pipedream workflows
-- Ensure that the workflows `retrieve-recurring-transactions` and `access-token+recurring-transactions-workflow` have been deployed
-
 ### Build (production)
 ```bash
 npm run build
 ```
 
+### Pipedream workflows
+- Ensure that the workflows `retrieve-recurring-transactions` and `access-token+recurring-transactions-workflow` have been deployed
+
 ---
 
-## Technologies Used & How They’re Set Up
+## Technologies Used
 
-This project is deliberately lightweight and uses a few well-known tools. Below is a practical guide to what each piece does and how to set it up from scratch.
+This project is deliberately lightweight and uses a few well-known tools. Below is a practical guide to what each piece does.
 
 ### 1) React (App Framework) + Router
 - **What**: The component model and client-side navigation.
 - **Why**: Fast, flexible UI with reusable components.
-- **Setup**:
-  - Install (already present in this repo if you cloned it). If starting fresh:
-    ```bash
-    # Vite (recommended)
-    npm create vite@latest my-app -- --template react
-    cd my-app && npm install
-    ```
-  - Router:
-    ```bash
-    npm i react-router-dom
-    ```
-    In `App.jsx`, define routes (simplified):
-    ```jsx
-    import { BrowserRouter, Routes, Route } from "react-router-dom";
-    import LinkPage from "./pages/LinkPage.jsx";
 
-    export default function App() {
-      return (
-        <BrowserRouter>
-          <Routes>
-            <Route path="/link" element={<LinkPage />} />
-          </Routes>
-        </BrowserRouter>
-      );
-    }
-    ```
-    The page expects a query param like `?user_id=<RowID>`.
-
-### 2) Material UI (MUI) for Components & Icons
+### 2) Material UI (MUI)
 - **What**: Design system for buttons, cards, layout; icons via `@mui/icons-material`.
 - **Why**: Consistent, accessible UI; responsive grid and AppBar.
-- **Install**:
-  ```bash
-  npm i @mui/material @emotion/react @emotion/styled @mui/icons-material
-  ```
-- **Theme (optional but recommended)**:
-  ```jsx
-  // main.jsx
-  import { ThemeProvider, createTheme } from "@mui/material/styles";
-  import CssBaseline from "@mui/material/CssBaseline";
-  import App from "./App.jsx";
 
-  const theme = createTheme({
-    palette: {
-      primary: { main: "#1d4ed8" },   // blue AppBar
-      warning: { main: "#f59e0b" },
-    },
-    shape: { borderRadius: 12 },
-  });
-
-  ReactDOM.createRoot(document.getElementById("root")).render(
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <App />
-    </ThemeProvider>
-  );
-  ```
-- **Sticky AppBar pattern** (already implemented in `TopBar.jsx`):
-  - Use `position="fixed"` and add a `<Toolbar />` or `theme.mixins.toolbar` spacer immediately after the AppBar.
-
-### 3) Plaid Link (Client) + Plaid API (Server)
+### 3) Plaid
 - **What**: Secure bank connection. **Client** opens Plaid Link with a short-lived `link_token`. After success, Plaid returns a short-lived **`public_token`**.
 - **Why**: Industry-standard for connecting bank accounts.
 - **Client Install**:
   ```bash
   npm i react-plaid-link
   ```
-- **Server Requirements** (Node/Express, or Pipedream/Cloud Functions):
-  - Must expose endpoints to:
-    1. **Create Link Token** (`/api/create_link_token`) → returns `{ link_token }`
-    2. **Exchange Public Token** (`/api/exchange_public_token`) → returns `{ access_token }` (server-side only)
-    3. **Get Recurring Data** (`/api/recurring`) using the `access_token`
-- **Server Example (Node/Express, pseudo)**:
-  ```js
-  import express from "express";
-  import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 
-  const config = new Configuration({
-    basePath: PlaidEnvironments.sandbox, // or development/production
-    baseOptions: {
-      headers: {
-        "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID,
-        "PLAID-SECRET": process.env.PLAID_SECRET
-      }
-    }
-  });
-  const plaid = new PlaidApi(config);
-  const app = express();
-  app.use(express.json());
-
-  app.post("/api/create_link_token", async (req, res) => {
-    const { userId } = req.body;
-    const r = await plaid.linkTokenCreate({
-      user: { client_user_id: userId },
-      client_name: "finEQUITY",
-      products: ["transactions"],           // add "transactions" for recurring endpoints
-      country_codes: ["US"],
-      language: "en",
-    });
-    res.json({ link_token: r.data.link_token });
-  });
-
-  app.post("/api/exchange_public_token", async (req, res) => {
-    const { publicToken } = req.body;       // received immediately from Plaid Link
-    const exchange = await plaid.itemPublicTokenExchange({ public_token: publicToken });
-    const accessToken = exchange.data.access_token;
-    // Example recurring transactions fetch:
-    const recurring = await plaid.transactionsRecurringGet({ access_token: accessToken });
-    res.json({ tag: "recurring_data", data: recurring.data.transactions ?? [] });
-  });
-
-  app.listen(3001);
-  ```
-  > Never send the **access_token** to the browser. Keep it server-side.
-
-- **Pipedream Setup** (if you’re not running a server):
-  - Workflow A (Retrieve): Input `{ userId }` → return either `{ tag: "link_token" }` or `{ tag: "recurring_data" }`
-  - Workflow B (Exchange): Input `{ publicToken, userId }` → exchange the token and return `{ tag: "recurring_data", data: [...] }`
-  - Pro tip: Do **not replay** old events; Plaid will reject expired tokens (error `INVALID_PUBLIC_TOKEN`).
-
-- **Environment Variables** (server/Pipedream):
+### 4) Pipedream
+- Workflow A (retrieve-recurring-transactions): Input `{ userId }` → return either `{ tag: "link_token" }` or `{ tag: "recurring_data" }`
+- Workflow B (access-token+recurring-transactions-workflow): Input `{ publicToken, userId }` → exchange the token and return `{ tag: "recurring_data", data: {...} }`
+- Environment Variables: 
   - `PLAID_CLIENT_ID`, `PLAID_SECRET`
-  - `PLAID_ENV` = `sandbox` | `development` | `production`
+  - `PLAID_ENV` = `sandbox` | `production`
+- Pro tip: Do **not replay** old events; Plaid will reject expired tokens (error `INVALID_PUBLIC_TOKEN`).
 
-### 4) Glide Integration (Passing the Right User)
-- **Goal**: Open `https://YOUR-DOMAIN.com/link?user_id=<SIGNED-IN ROWID>`
-- **Steps**:
-  1. **Enable User Profiles** → pick **Users** table + Email column.
-  2. **Access** → choose **Users table**.
-  3. **Users table** → add Template `WebAppURL`:
-     ```
-     https://YOUR-DOMAIN.com/link?user_id=[This Row → Row ID]
-     ```
-  4. In your button action → **Open Link** with **User Profile → WebAppURL**.
-- **Common Pitfall**: Using the screen’s Row ID (often Admin) instead of **User Profile → Row ID**.
-- **Optional**: If the button lives on a non-Users table, add a **Single Value** column that pulls **User Profile → Row ID** into that row and build the template from it.
+### 5) Glide
+- **Why**: Initiates the entire recurring subscription workflow via a button click
 
-### 5) Local Cache (Front-End)
-- **What**: Cache recurring items per user for 12 hours to avoid repeated calls.
+### 6) Local Cache (Front-End)
+- **What**: Cache recurring subscription items per user for 12 hours to avoid repeated calls.
 - **Where**: Implemented in `LinkPage.jsx` using `localStorage`.
-- **Behavior**: Use cache on load; fetch only when missing/expired; update cache after Plaid success.
+- **Behavior**: Use cache on load; fetch only when missing/expired; update cache after Plaid recurring data success.
 
-### 6) Build & Deploy
-- **Build**:
-  ```bash
-  npm run build
-  ```
-- **Hosting**: Any static host (Vercel, Netlify, Cloudflare Pages, S3+CloudFront). For single-page apps, add a **rewrite** so unknown paths route to `index.html`.
-  - Netlify `_redirects`:
-    ```
-    /*    /index.html   200
-    ```
-  - Vercel: framework preset handles SPA fallback automatically for Vite/React.
-
-- **CORS**: If your backend lives on a different domain, enable CORS for your app’s origin on the backend routes you call.
-
+### 7) Netlify
+- **What**: For hosting react application
+- **Why**: Make the application accessible
 ---
 
 ## Troubleshooting
@@ -336,9 +215,6 @@ You are exchanging an expired or already-used token. Exchange **immediately** in
 - Cache TTL too short or cache not written. Confirm `writeCache()` is called.
 - Do **not** clear `subs` when a `link_token` arrives—keep cached data visible until new data is fetched.
 
-### Header hides the page title
-Use a fixed AppBar with a `Toolbar` spacer (already done in `TopBar.jsx`).
-
 ---
 
 ## Security Notes
@@ -347,34 +223,6 @@ Use a fixed AppBar with a `Toolbar` spacer (already done in `TopBar.jsx`).
 - Exchange the **public_token** server-side immediately after Link success.
 - Use HTTPS for all endpoints.
 - Treat all user data as sensitive; follow your data handling policies.
+- For each workflow in Pipedream, prevent logging
 
 ---
-
-## Extending the App
-
-- **Cancel/Disable** buttons that call your backend to pause/cancel a subscription.
-- **Filters/sorting** by category, amount, next charge.
-- **Grouping** by bank account (“Checking”, “Savings”).
-- **Empty state** education or onboarding tips when no items are found.
-
----
-
-## Quick Command Cheatsheet
-
-```bash
-# install deps
-npm install
-
-# dev (Vite)
-npm run dev
-
-# dev (CRA)
-npm start
-
-# build
-npm run build
-
-# optional: serve production build locally
-npx serve -s dist   # Vite
-npx serve -s build  # CRA
-```
