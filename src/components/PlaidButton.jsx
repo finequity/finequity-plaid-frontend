@@ -24,7 +24,7 @@ import { toRecurringItems } from "../utils/recurring-data-formatter";
  * exchanges it plaid for an access token which is subsequently used to
  * retrieve the recurring subscriptions
  */
-const EXCHANGE_URL = "https://eoed1ewpys9wqba.m.pipedream.net";
+const EXCHANGE_URL = process.env.REACT_APP_ACCESS_TOKEN_RECURRING_TRANSACTIONS_TRIGGER;
 
 // Lightweight inline spinner. We keep it minimal and accessible
 const Loader = () => (

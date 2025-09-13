@@ -1,55 +1,47 @@
 /**
- * CardGrid (Subscriptions list)
- * -----------------------------
- * Renders a responsive, centered grid of uniform subscription cards using MUI.
+ * SubscriptionsAccordion
+ * ----------------------
+ * Shows a vertical list of always-expanded MUI Accordions that display
+ * subscription information. The expand arrow is removed and the summary
+ * is styled to feel non-interactive.
  *
- * UX goals:
- * - Cards have consistent height/width so the grid looks tidy across breakpoints.
- * - Description and amount share the first line (desc is ellipsized to avoid overflow).
- * - Category/Frequency are presented as chips.
- * - Upcoming/Last charge rows include icons and short, friendly dates.
- *
- * Props:
- * - items: Array of normalized recurring items (see toRecurringItems), e.g.:
- *   {
- *     account_id: "abc",
- *     description: "Spotify",
- *     personal_finance_category: { detailed: "DIGITAL_MUSIC" },
- *     frequency: "MONTHLY",
- *     average_amount: { amount: 9.99 },
- *     predicted_next_date: "2025-09-14",
- *     last_date: "2025-08-14"
- *   }
+ * Expected item shape (per your normalizer):
+ * {
+ *   account_id: string,
+ *   description: string,
+ *   personal_finance_category: { detailed: string|null },
+ *   frequency: string|null,
+ *   average_amount: { amount: number },
+ *   predicted_next_date: string|null, // ISO
+ *   last_date: string|null            // ISO
+ * }
  */
 
 import * as React from "react";
 
-// Core MUI building blocks
+// Layout primitives
 import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import CardActions from "@mui/material/CardActions";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 
-// Icons for visual semantics
+// Accordion primitives
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
+
+// Typography
+import Typography from "@mui/material/Typography";
+
+// Icons used in the details section
 import CategoryRoundedIcon from "@mui/icons-material/CategoryRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 
-// ---- Layout constants -------------------------------------------------------
-// Keep min/max widths close so columns align cleanly; fixed height for tidy rows.
-const CARD_MIN_WIDTH = 340;
-const CARD_MAX_WIDTH = 360;
-const CARD_HEIGHT = 250;
+/* -----------------------------------------------------------------------------
+ * Helpers
+ * ---------------------------------------------------------------------------*/
 
-// ---- Formatting helpers -----------------------------------------------------
-
-// Format any numeric amount as USD, always positive (subscriptions show cost, not sign)
+/** Format any numeric amount as USD and force it positive */
 const toUSD = (n) =>
     Math.abs(Number(n ?? 0)).toLocaleString(undefined, {
         style: "currency",
@@ -57,7 +49,7 @@ const toUSD = (n) =>
         minimumFractionDigits: 2,
     });
 
-// Humanize category enums like "FOOD_AND_DRINK_RESTAURANT" → "Food and Drink Restaurant"
+/** "FOOD_AND_DRINK_RESTAURANT" -> "Food And Drink Restaurant" (with "and" lowercased) */
 const humanize = (s = "") =>
     String(s)
         .split("_")
@@ -65,37 +57,33 @@ const humanize = (s = "") =>
         .join(" ")
         .replace("And", "and");
 
-// Normalize frequency like "MONTHLY" → "Monthly"
+/** "MONTHLY" -> "Monthly" */
 const freqText = (f = "") => (f ? f[0] + f.slice(1).toLowerCase() : "Unknown");
 
-// ---- Component --------------------------------------------------------------
+/* -----------------------------------------------------------------------------
+ * Component
+ * ---------------------------------------------------------------------------*/
 
-export default function CardGrid({ items = [] }) {
+export default function SubscriptionsAccordion({ items = [] }) {
     return (
         <Box sx={{ pb: 4 }}>
-            {/* Constrain overall content width and add horizontal padding */}
-            <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 2, sm: 3 } }}>
-                {/* Empty state: keep it gentle and centered */}
+            {/* Center content and keep comfortable page padding */}
+            <Box sx={{ maxWidth: 900, mx: "auto", px: { xs: 2, sm: 3 } }}>
+                {/* Empty state */}
                 {items.length === 0 ? (
                     <Typography sx={{ textAlign: "center", color: "text.secondary", py: 6 }}>
                         No subscriptions found.
                     </Typography>
                 ) : (
-                    // Responsive, centered grid; each item column will flex within our min/max width
-                    <Grid
-                        container
-                        spacing={2}
-                        justifyContent="center"
-                        alignItems="stretch"
-                        sx={{ mx: "auto" }}
-                    >
+                    // Stack = vertical list of always-expanded accordions
+                    <Stack spacing={1.25}>
                         {items.map((item, idx) => {
-                            // Derived fields for display
+                            // Derive all display strings up front
                             const amountDisplay = toUSD(item?.average_amount?.amount);
                             const category = humanize(item?.personal_finance_category?.detailed);
                             const freq = freqText(item?.frequency);
 
-                            // Dates shown as "Sep 14"
+                            // Show short dates like "Sep 17"
                             const next = item?.predicted_next_date
                                 ? new Date(item.predicted_next_date).toLocaleString(undefined, {
                                     month: "short",
@@ -111,139 +99,117 @@ export default function CardGrid({ items = [] }) {
                                 : "—";
 
                             return (
-                                <Grid
-                                    item
+                                <Accordion
                                     key={
-                                        // Composite key is safer when multiple accounts share descriptions.
-                                        item?.account_id ? `${item.account_id}|${item.description}|${idx}` : idx
+                                        item?.account_id
+                                            ? `${item.account_id}|${item.description}|${idx}`
+                                            : idx
                                     }
+                                    expanded                 // <- keep every panel open at all times
+                                    disableGutters           // <- remove default outer gutters
+                                    square                   // <- squared edges; we still add radius below
                                     sx={{
-                                        // Allow wrapping while keeping a tidy column width range
-                                        flex: `1 1 ${CARD_MIN_WIDTH}px`,
-                                        maxWidth: { sm: CARD_MAX_WIDTH },
-                                        display: "flex", // so the Card can stretch to equal height
+                                        border: "1px solid",
+                                        borderColor: "grey.300",
+                                        borderRadius: 2,
+                                        background: "linear-gradient(180deg, #fff 0%, #fafafa 100%)",
+                                        // soft depth without heavy shadows
+                                        boxShadow:
+                                            "inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px rgba(15,23,42,0.08), 0 8px 16px rgba(15,23,42,0.08)",
+                                        overflow: "hidden",
+                                        "&::before": { display: "none" }, // remove default top divider line
                                     }}
                                 >
-                                    <Card
-                                        variant="outlined"
+                                    <AccordionSummary
+                                        // NOTE: no expandIcon → arrow is removed
+                                        aria-controls={`sub-panel-${idx}-content`}
+                                        id={`sub-panel-${idx}-header`}
                                         sx={{
-                                            width: 1,                      // fill the Grid cell
-                                            minWidth: CARD_MIN_WIDTH,      // consistent column width
-                                            height: CARD_HEIGHT,           // uniform height across cards
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            borderRadius: 2,
-                                            overflow: "hidden",
-                                            border: "1px solid",
-                                            borderColor: "grey.300",
-                                            // Soft gradient and gentle shadows for depth without heaviness
-                                            background: "linear-gradient(180deg, #fff 0%, #fafafa 100%)",
-                                            boxShadow:
-                                                "inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px rgba(15,23,42,0.08), 0 8px 16px rgba(15,23,42,0.08)",
-                                            p: 2, // inner padding to match mock
+                                            px: 2,
+                                            py: 1,
+                                            cursor: "default", // make it feel non-clickable
+                                            "& .MuiAccordionSummary-content": { my: 0.5, width: "100%" },
+                                            "& .MuiAccordionSummary-expandIconWrapper": { display: "none" }, // safety
+                                            "&.Mui-focusVisible": { backgroundColor: "transparent" },       // remove focus bg
                                         }}
                                     >
-                                        <CardContent sx={{ p: 0, flexGrow: 1 }}>
-                                            {/* Header row: description (left, clipped) + amount (right) */}
+                                        {/* Header row: description (wraps) + amount (right) */}
+                                        <Box sx={{ width: 1 }}>
                                             <Box
                                                 sx={{
                                                     display: "flex",
-                                                    alignItems: "center",
+                                                    alignItems: "flex-start",
                                                     justifyContent: "space-between",
                                                     gap: 1.5,
-                                                    mb: 0.25,
                                                 }}
                                             >
-                                                {/* Wrap in minWidth:0 container so ellipsis works within flex */}
-                                                <Box sx={{ minWidth: 0, flex: 1 }}>
-                                                    <Typography
-                                                        variant="h6"
-                                                        sx={{
-                                                            fontWeight: 800,
-                                                            fontSize: { xs: 16, sm: 18 }, // slightly smaller so long names fit
-                                                            lineHeight: 1.2,
-                                                            overflow: "hidden",
-                                                            textOverflow: "ellipsis",
-                                                            whiteSpace: "nowrap",
-                                                        }}
-                                                        title={item?.description || ""} // tooltip for full name
-                                                    >
-                                                        {item?.description || "Subscription"}
-                                                    </Typography>
-                                                </Box>
+                                                <Typography
+                                                    component="span"
+                                                    variant="h6"
+                                                    sx={{
+                                                        fontWeight: 800,
+                                                        fontSize: { xs: 16, sm: 18 },
+                                                        lineHeight: 1.25,
+                                                        whiteSpace: "normal",   // allow wrapping for long names
+                                                        wordBreak: "break-word", // break very long tokens
+                                                        pr: 1,
+                                                    }}
+                                                    title={item?.description || ""}
+                                                >
+                                                    {item?.description || "Subscription"}
+                                                </Typography>
 
-                                                {/* Amount stays on the same line; no wrapping */}
-                                                <Typography variant="h6" sx={{ fontWeight: 800, whiteSpace: "nowrap" }}>
+                                                <Typography
+                                                    component="span"
+                                                    variant="h6"
+                                                    sx={{ fontWeight: 800, whiteSpace: "nowrap" }}
+                                                >
                                                     {amountDisplay}
                                                 </Typography>
                                             </Box>
+                                        </Box>
+                                    </AccordionSummary>
 
-                                            {/* Second line: chips for category & frequency */}
-                                            <Stack
-                                                direction="row"
-                                                spacing={1}
-                                                useFlexGap
-                                                flexWrap="wrap"
-                                                sx={{ mb: 2 }} // leave breathing room before details
-                                            >
-                                                <Chip
-                                                    size="small"
-                                                    icon={<CategoryRoundedIcon sx={{ color: "warning.main !important" }} />}
-                                                    label={category || "Category"}
-                                                    sx={{
-                                                        bgcolor: "warning.50",
-                                                        color: "warning.800",
-                                                        borderColor: "warning.200",
-                                                        borderStyle: "solid",
-                                                        borderWidth: 1,
-                                                        fontWeight: 600,
-                                                    }}
-                                                    variant="outlined"
-                                                />
-                                                <Chip
-                                                    size="small"
-                                                    icon={<CalendarMonthRoundedIcon />}
-                                                    label={freq}
-                                                    sx={{
-                                                        bgcolor: "grey.100",
-                                                        color: "grey.800",
-                                                        borderColor: "grey.300",
-                                                        borderStyle: "solid",
-                                                        borderWidth: 1,
-                                                        fontWeight: 600,
-                                                    }}
-                                                    variant="outlined"
-                                                />
+                                    {/* Body: details with icons */}
+                                    <AccordionDetails sx={{ px: 2, pt: 0.5, pb: 2 }}>
+                                        <Stack spacing={0.9}>
+                                            {/* Category */}
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                <CategoryRoundedIcon sx={{ color: "warning.main" }} />
+                                                <Typography variant="body2">
+                                                    <strong>Category:</strong> {category || "—"}
+                                                </Typography>
                                             </Stack>
 
-                                            {/* Third line: details rows with icons */}
-                                            <Stack spacing={0.75}>
-                                                <Stack direction="row" spacing={1} alignItems="center">
-                                                    <AccessTimeRoundedIcon sx={{ color: "warning.main" }} />
-                                                    <Typography variant="body2">
-                                                        <strong>Upcoming Charge:</strong> {next}
-                                                    </Typography>
-                                                </Stack>
-                                                <Stack direction="row" spacing={1} alignItems="center">
-                                                    <HistoryRoundedIcon sx={{ color: "text.secondary" }} />
-                                                    <Typography variant="body2">
-                                                        <strong>Last Charge:</strong> {last}
-                                                    </Typography>
-                                                </Stack>
+                                            {/* Frequency */}
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                <CalendarMonthRoundedIcon sx={{ color: "text.secondary" }} />
+                                                <Typography variant="body2">
+                                                    <strong>Frequency:</strong> {freq}
+                                                </Typography>
                                             </Stack>
-                                        </CardContent>
 
-                                        {/* CTA row; kept minimal. Wire this to your disable/cancel flow as needed. */}
-                                        <CardActions sx={{ p: 0, pt: 1 }}>
-                                            <Button size="small" sx={{ fontWeight: 700, px: 0, textTransform: "uppercase" }}>
-                                                Disable Subscription
-                                            </Button>
-                                        </CardActions>
-                                    </Card>
-                                </Grid>
+                                            {/* Upcoming charge */}
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                <AccessTimeRoundedIcon sx={{ color: "warning.main" }} />
+                                                <Typography variant="body2">
+                                                    <strong>Upcoming Charge:</strong> {next}
+                                                </Typography>
+                                            </Stack>
+
+                                            {/* Last charge */}
+                                            <Stack direction="row" spacing={1} alignItems="center">
+                                                <HistoryRoundedIcon sx={{ color: "text.secondary" }} />
+                                                <Typography variant="body2">
+                                                    <strong>Last Charge:</strong> {last}
+                                                </Typography>
+                                            </Stack>
+                                        </Stack>
+                                    </AccordionDetails>
+                                </Accordion>
                             );
                         })}
-                    </Grid>
+                    </Stack>
                 )}
             </Box>
         </Box>

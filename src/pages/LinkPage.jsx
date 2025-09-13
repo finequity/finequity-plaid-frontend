@@ -16,9 +16,12 @@ import TopBar, { PageHeader } from "../components/TopBar";
 import Subscriptions from "../components/Subscriptions.jsx";
 import { toRecurringItems } from "../utils/recurring-data-formatter.js";
 
+// Base url
+const BASE_URL = process.env.REACT_APP_RETRIEVE_RECURRING_TRANSACTIONS_TRIGGER;
+
 // ----- Local cache (no auto-refresh) -----
 // TTL is 12 hours; adjust as needed to control how often the API is called.
-const CACHE_TTL_MS = 1000 * 60 * 60 * 12;       // 12h; adjust as needed
+const CACHE_TTL_MS = Number(process.env.REACT_APP_CACHE_TTL_MS) || 12 * 60 * 60 * 1000; // 12h in milliseconds
 
 // Namespace the cache by user_id so each user sees only their own cached list.
 const cacheKey = (uid) => `recurring_cache_v1:${uid}`;
@@ -69,7 +72,7 @@ const LinkPage = () => {
         try {
             // POST to your backend (Pipedream/Server) with this userId.
             // The backend responds with either a link_token or recurring_data.
-            const res = await fetch("https://eo9sbw0f05oko1.m.pipedream.net", {
+            const res = await fetch(BASE_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ userId }),
@@ -160,6 +163,7 @@ const LinkPage = () => {
         }
     };
 
+    
     return (
         <>
             {/* Sticky top bar + page title/description */}

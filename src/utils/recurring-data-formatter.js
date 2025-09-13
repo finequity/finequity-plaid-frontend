@@ -38,58 +38,45 @@
  *   - Sort order: ascending by `predicted_next_date`; missing dates are placed at the end.
  */
 export async function toRecurringItems(resp) {
-    // Ensure we always have the two arrays we expect, even if `resp` is undefined/null.
-    const streams = resp || { inflow_streams: [], outflow_streams: [] };
+    // Only consider outflow_streams (guarded)
+    const outflows = (resp && Array.isArray(resp.outflow_streams))
+        ? resp.outflow_streams
+        : [];
 
-    // Project (pick/normalize) only the fields the UI needs from each stream.
     const pickFields = (s) => ({
         account_id: s.account_id,
-
-        // Prefer s.average_amount.amount, else s.last_amount.amount, else 0; always a Number
         average_amount: {
+            // keep numeric; UI can format/abs if desired
             amount: Number(
                 (s.average_amount && s.average_amount.amount) ??
                 (s.last_amount && s.last_amount.amount) ??
                 0
             ),
         },
-
-        // Prefer merchant_name if present and non-empty; else fall back to raw description
         description:
             s.merchant_name && s.merchant_name.trim().length
                 ? s.merchant_name
                 : (s.description || ""),
-
-        // Copy-through fields (or null if missing)
         frequency: s.frequency || null,
         last_date: s.last_date || null,
-
-        // Keep nested shape for category, but guard for missing object
         personal_finance_category: {
             detailed:
                 (s.personal_finance_category &&
                     s.personal_finance_category.detailed) || null,
         },
-
         predicted_next_date: s.predicted_next_date || null,
     });
 
-    // Include only streams explicitly marked active
-    const active = (arr) => (arr || []).filter((s) => s.is_active);
+    // Only active streams
+    const combined = outflows.filter((s) => s.is_active).map(pickFields);
 
-    // Merge inflow + outflow after mapping to normalized items
-    const combined = [
-        ...active(streams.inflow_streams).map(pickFields),
-        ...active(streams.outflow_streams).map(pickFields),
-    ];
-
-    // Sort by predicted_next_date (ascending). Items without a date go last.
+    // Sort by predicted_next_date (ascending); missing dates last
     combined.sort((a, b) => {
         const ax = a.predicted_next_date || "";
         const bx = b.predicted_next_date || "";
-        if (!ax && !bx) return 0; // both missing → keep relative order
-        if (!ax) return 1;        // a missing → a after b
-        if (!bx) return -1;       // b missing → b after a
+        if (!ax && !bx) return 0;
+        if (!ax) return 1;
+        if (!bx) return -1;
         return ax.localeCompare(bx);
     });
 

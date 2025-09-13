@@ -215,6 +215,10 @@ You are exchanging an expired or already-used token. Exchange **immediately** in
 - Cache TTL too short or cache not written. Confirm `writeCache()` is called.
 - Do **not** clear `subs` when a `link_token` arrives—keep cached data visible until new data is fetched.
 
+### Recurring subscriptions not being fetched from Pipedream
+- Ensure that workflows have been deployed
+- Ensure that the correct trigger url is being called in React
+
 ---
 
 ## Security Notes
