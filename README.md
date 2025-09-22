@@ -205,17 +205,14 @@ This project is deliberately lightweight and uses a few well-known tools. Below 
 
 ## Troubleshooting
 
-### Always shows Admin’s data
-Glide link is built from the screen’s row, not **User Profile**. Fix the template to use **User Profile → Row ID**.
-
-### Plaid error: `INVALID_PUBLIC_TOKEN`
+### 1) Plaid error: `INVALID_PUBLIC_TOKEN`
 You are exchanging an expired or already-used token. Exchange **immediately** in the Plaid onSuccess handler; guard against double-submission and don’t replay old Pipedream events.
 
-### Page keeps fetching on reload
+### 2) Page keeps fetching on reload
 - Cache TTL too short or cache not written. Confirm `writeCache()` is called.
 - Do **not** clear `subs` when a `link_token` arrives—keep cached data visible until new data is fetched.
 
-### Recurring subscriptions not being fetched from Pipedream
+### 3) Recurring subscriptions not being fetched from Pipedream
 - Ensure that workflows have been deployed
 - Ensure that the correct trigger url is being called in React
 
@@ -226,7 +223,16 @@ You are exchanging an expired or already-used token. Exchange **immediately** in
 - Never expose Plaid **access_token** in the browser.
 - Exchange the **public_token** server-side immediately after Link success.
 - Use HTTPS for all endpoints.
-- Treat all user data as sensitive; follow your data handling policies.
-- For each workflow in Pipedream, prevent logging
+- Treat all user data as sensitive.
+- For each workflow in Pipedream, prevent logging.
+
+---
+
+## Possible scenarios which can occur/change
+
+- If finequity.org wants to change the netlify domain. 
+- Changing cache limit (ie. how long recurring subscription data remain in cache)
+- Changing text content of React code 
+- Changing Pipedream triggers
 
 ---
