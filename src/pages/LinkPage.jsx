@@ -21,7 +21,7 @@ const BASE_URL = process.env.REACT_APP_RETRIEVE_RECURRING_TRANSACTIONS_TRIGGER;
 
 // ----- Local cache (no auto-refresh) -----
 // TTL is 12 hours; adjust as needed to control how often the API is called.
-const CACHE_TTL_MS = Number(process.env.REACT_APP_CACHE_TTL_MS) || 12 * 60 * 60 * 1000; // 12h in milliseconds
+const CACHE_TTL_MS = Number(process.env.REACT_APP_CACHE_TTL_MS) || 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 // Namespace the cache by user_id so each user sees only their own cached list.
 const cacheKey = (uid) => `recurring_cache_v1:${uid}`;
