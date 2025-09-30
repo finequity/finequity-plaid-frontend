@@ -48,6 +48,7 @@ const writeCache = (uid, items) => {
     } catch { }
 };
 
+
 const LinkPage = () => {
     // linkToken: if backend returns a link_token, we show the Plaid connect flow
     const [linkToken, setLinkToken] = useState(null);
@@ -169,7 +170,7 @@ const LinkPage = () => {
             {/* Sticky top bar + page title/description */}
             <TopBar />
             <PageHeader />
-
+            
             {/* Main content area; conditional rendering based on state */}
             <div style={{ minHeight: "calc(100vh - 80px)", width: "100%" }}>
                 {loading ? (

@@ -17,6 +17,14 @@
  * }
  */
 
+
+/**
+ * SubscriptionsAccordion (controlled)
+ * - Only the first accordion starts expanded.
+ * - Users can expand/collapse any panel.
+ */
+
+
 import * as React from "react";
 
 // Layout primitives
@@ -36,6 +44,8 @@ import CategoryRoundedIcon from "@mui/icons-material/CategoryRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
+import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
+
 
 /* -----------------------------------------------------------------------------
  * Helpers
@@ -64,26 +74,32 @@ const freqText = (f = "") => (f ? f[0] + f.slice(1).toLowerCase() : "Unknown");
  * Component
  * ---------------------------------------------------------------------------*/
 
+
 export default function SubscriptionsAccordion({ items = [] }) {
+    // Track which panel is expanded (store its index). Default: 0 (first item).
+    const [expanded, setExpanded] = React.useState(items.length ? 0 : false);
+    React.useEffect(() => {
+        setExpanded(items.length ? 0 : false);
+    }, [items]);
+
+    const handleToggle = (panelIdx) => (event, isExpanded) => {
+        setExpanded(isExpanded ? panelIdx : false); // collapse if clicking an open one
+    };
+
     return (
         <Box sx={{ pb: 4 }}>
-            {/* Center content and keep comfortable page padding */}
             <Box sx={{ maxWidth: 900, mx: "auto", px: { xs: 2, sm: 3 } }}>
-                {/* Empty state */}
                 {items.length === 0 ? (
                     <Typography sx={{ textAlign: "center", color: "text.secondary", py: 6 }}>
                         No subscriptions found.
                     </Typography>
                 ) : (
-                    // Stack = vertical list of always-expanded accordions
                     <Stack spacing={1.25}>
                         {items.map((item, idx) => {
-                            // Derive all display strings up front
                             const amountDisplay = toUSD(item?.average_amount?.amount);
                             const category = humanize(item?.personal_finance_category?.detailed);
                             const freq = freqText(item?.frequency);
 
-                            // Show short dates like "Sep 17"
                             const next = item?.predicted_next_date
                                 ? new Date(item.predicted_next_date).toLocaleString(undefined, {
                                     month: "short",
@@ -98,38 +114,36 @@ export default function SubscriptionsAccordion({ items = [] }) {
                                 })
                                 : "—";
 
+                            const key =
+                                item?.account_id ? `${item.account_id}|${item.description}|${idx}` : idx;
+
                             return (
                                 <Accordion
-                                    key={
-                                        item?.account_id
-                                            ? `${item.account_id}|${item.description}|${idx}`
-                                            : idx
-                                    }
-                                    expanded                 // <- keep every panel open at all times
-                                    disableGutters           // <- remove default outer gutters
-                                    square                   // <- squared edges; we still add radius below
+                                    key={key}
+                                    expanded={expanded === idx}
+                                    onChange={handleToggle(idx)}
+                                    disableGutters
+                                    square
                                     sx={{
                                         border: "1px solid",
                                         borderColor: "grey.300",
                                         borderRadius: 2,
                                         background: "linear-gradient(180deg, #fff 0%, #fafafa 100%)",
-                                        // soft depth without heavy shadows
                                         boxShadow:
                                             "inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px rgba(15,23,42,0.08), 0 8px 16px rgba(15,23,42,0.08)",
                                         overflow: "hidden",
-                                        "&::before": { display: "none" }, // remove default top divider line
+                                        "&::before": { display: "none" },
                                     }}
                                 >
                                     <AccordionSummary
-                                        // NOTE: no expandIcon → arrow is removed
+                                        expandIcon={<ArrowDropDownIcon />}
                                         aria-controls={`sub-panel-${idx}-content`}
                                         id={`sub-panel-${idx}-header`}
                                         sx={{
                                             px: 2,
                                             py: 1,
-                                            cursor: "default", // make it feel non-clickable
+                                            cursor: "pointer", // make it feel non-clickable
                                             "& .MuiAccordionSummary-content": { my: 0.5, width: "100%" },
-                                            "& .MuiAccordionSummary-expandIconWrapper": { display: "none" }, // safety
                                             "&.Mui-focusVisible": { backgroundColor: "transparent" },       // remove focus bg
                                         }}
                                     >
