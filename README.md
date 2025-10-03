@@ -206,7 +206,7 @@ This project is deliberately lightweight and uses a few well-known tools. Below 
 ## Troubleshooting
 
 ### 1) Plaid error: `INVALID_PUBLIC_TOKEN`
-You are exchanging an expired or already-used token. Exchange **immediately** in the Plaid onSuccess handler; guard against double-submission and don’t replay old Pipedream events.
+- You are exchanging an expired or already-used token. Exchange **immediately** in the Plaid onSuccess handler; guard against double-submission and don’t replay old Pipedream events.
 
 ### 2) Page keeps fetching on reload
 - Cache TTL too short or cache not written. Confirm `writeCache()` is called.
