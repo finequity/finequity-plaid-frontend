@@ -1,146 +1,141 @@
-/**
- * TopBar + PageHeader
- * -------------------
- * A fixed (sticky) top navigation bar plus a centered page header section.
- * - The TopBar uses MUI's AppBar and Toolbar. It's fixed to the top and stays visible
- *   while scrolling. We add a *spacer* Toolbar after it so page content doesn't hide
- *   beneath the fixed bar.
- * - The PageHeader is a simple section below the bar with a title and subtitle,
- *   centered and responsive.
- *
- * Tech notes:
- * - CssBaseline normalizes styles across browsers and applies MUI's sensible defaults.
- * - We use the `sx` prop to keep styling colocated and responsive (xs/sm/md breakpoints).
- * - `barHeights` matches MUI's default Toolbar heights (56 on mobile, 64 on larger screens).
- * - The AppBar's `zIndex` is left at the appBar default, but we explicitly reference the theme
- *   so this component plays nicely with Drawers or other layered components if added later.
- */
-
 import * as React from "react";
-
-// Material UI components for layout and typography.
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import CssBaseline from "@mui/material/CssBaseline";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
+import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
+import LockRoundedIcon from "@mui/icons-material/LockRounded";
 
+const BAR_H = { xs: 56, sm: 64 };
 
 function TopBar() {
-    /**
-     * Default MUI toolbar heights:
-     * - 56px on extra-small screens (xs)
-     * - 64px on small and up (sm+)
-     *
-     * We reuse these values for both the actual Toolbar and the spacer Toolbar below
-     * so the page content sits exactly below the fixed AppBar (no overlap).
-     */
-    const barHeights = { xs: 56, sm: 64 };
-
     return (
-        // Box is a lightweight wrapper that accepts the `sx` styling prop.
-        <Box sx={{ flexGrow: 1 }}>
-            {/* CssBaseline resets/normalizes browser CSS and sets a consistent base */}
+        <Box>
             <CssBaseline />
-
-            {/**
-                * AppBar is fixed to the top so it remains visible while scrolling.
-                * We remove the drop shadow for a flatter, modern look and set a custom background color.
-            */}
             <AppBar
                 position="fixed"
                 sx={(theme) => ({
-                    bgcolor: "#1d4ed8",       // Brand blue (override with theme.palette.primary.main if preferred)
-                    boxShadow: "none",        // Clean, flat header
-                    zIndex: theme.zIndex.appBar, // Keep above page content; plays well with Drawer if added later
+                    background: "linear-gradient(90deg, #1e3a8a 0%, #1d4ed8 100%)",
+                    boxShadow: "0 1px 0 rgba(255,255,255,0.08), 0 4px 24px rgba(15,23,42,0.18)",
+                    zIndex: theme.zIndex.appBar,
                 })}
             >
-                {/**
-                    * Toolbar handles vertical sizing/padding and horizontal layout.
-                    * `justifyContent: "center"` centers the title text within the bar.
-                    * `minHeight` uses our responsive barHeights for consistent vertical rhythm.
-                */}
-                <Toolbar sx={{ justifyContent: "center", minHeight: barHeights, py: 0.5 }}>
-                    <Typography
-                        component="div"
+                <Toolbar sx={{ minHeight: BAR_H, px: { xs: 2, sm: 3 } }}>
+                    {/* Brand */}
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, userSelect: "none" }}>
+                        <Box
+                            sx={{
+                                width: 34,
+                                height: 34,
+                                borderRadius: "10px",
+                                bgcolor: "rgba(255,255,255,0.12)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                            }}
+                        >
+                            <ShieldRoundedIcon sx={{ color: "#93c5fd", fontSize: 20 }} />
+                        </Box>
+                        <Typography
+                            sx={{
+                                fontWeight: 800,
+                                fontSize: { xs: 18, sm: 21 },
+                                color: "#fff",
+                                letterSpacing: "-0.3px",
+                            }}
+                        >
+                            fin<Box component="span" sx={{ color: "#93c5fd" }}>Equity</Box>
+                        </Typography>
+                    </Box>
+
+                    <Box sx={{ flexGrow: 1 }} />
+
+                    {/* Secured badge */}
+                    <Box
                         sx={{
-                            color: "#fff",
-                            fontWeight: 800,                         // Bold, prominent title
-                            textAlign: "center",
-                            fontSize: { xs: 22, sm: 26, md: 28 },   // Responsive sizing
-                            lineHeight: 1.2,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.6,
+                            bgcolor: "rgba(255,255,255,0.10)",
+                            border: "1px solid rgba(255,255,255,0.15)",
+                            px: 1.4,
+                            py: 0.5,
+                            borderRadius: 999,
                         }}
                     >
-                        Subscriptions
-                    </Typography>
+                        <LockRoundedIcon sx={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }} />
+                        <Typography sx={{ fontSize: 12, color: "rgba(255,255,255,0.75)", fontWeight: 600, lineHeight: 1 }}>
+                            Secured by Plaid
+                        </Typography>
+                    </Box>
                 </Toolbar>
             </AppBar>
 
-            {/**
-                * Spacer Toolbar:
-                * Because the AppBar is `position="fixed"`, it is removed from normal document flow
-                * and overlays content. This empty Toolbar with the SAME height pushes the rest of
-                * the page down so nothing hides under the bar.
-                *
-                * If you ever change the AppBar height, update this too.
-            */}
-            <Toolbar sx={{ minHeight: barHeights }} />
+            {/* Spacer so content doesn't hide under the fixed bar */}
+            <Toolbar sx={{ minHeight: BAR_H }} />
         </Box>
     );
 }
 
-/**
- * PageHeader
- * ----------
- * A centered header section typically placed right below the TopBar. It provides
- * a page title and a short subtitle for context.
- *
- * - `maxWidth: 1100` and horizontal auto margins keep the text centered and at a
- *   readable line length on large screens.
- * - Responsive padding ensures comfortable spacing on mobile and desktop.
- * - `textAlign: "center"` centers the text without extra grid/flex wrappers.
- */
 export function PageHeader() {
     return (
         <Box
             sx={{
-                maxWidth: 1100,                 // Keep line length readable on large screens
-                mx: "auto",                     // Center container horizontally
-                px: { xs: 2, sm: 3 },           // Comfortable side padding (more on larger screens)
-                pt: 2,                          // Space from the fixed AppBar spacer
-                pb: 1.5,                        // Space below the header section
-                textAlign: "center",            // Center text content
+                background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%)",
+                py: { xs: 4, sm: 5 },
+                px: 2,
+                textAlign: "center",
+                position: "relative",
+                overflow: "hidden",
             }}
         >
-            <Typography
-                variant="h4"
-                sx={{
-                    fontWeight: 600,
-                    color: "#0b4ea5",             // Accent color for the heading (can map to theme.palette.primary.dark)
-                    fontSize: { xs: 22, sm: 28 }, // Responsive heading size
-                    mb: 0.5,                      // Tight margin below heading
-                }}
-            >
-                Review Your Subscriptions
-            </Typography>
+            {/* Decorative rings */}
+            {[260, 420, 580].map((size) => (
+                <Box
+                    key={size}
+                    sx={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%,-50%)",
+                        width: size,
+                        height: size,
+                        borderRadius: "50%",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        pointerEvents: "none",
+                    }}
+                />
+            ))}
 
-            <Typography sx={{ color: "text.secondary", mb: 2 }}>
-                {/* Short, helpful subtitle for context */}
-                Next charges at a glance—cancel what you don’t need.
-            </Typography>
+            <Box sx={{ position: "relative", zIndex: 1 }}>
+                <Typography
+                    variant="h4"
+                    sx={{
+                        fontWeight: 800,
+                        color: "#fff",
+                        fontSize: { xs: 24, sm: 30, md: 34 },
+                        letterSpacing: "-0.5px",
+                        mb: 1,
+                    }}
+                >
+                    Your Subscriptions
+                </Typography>
+                <Typography
+                    sx={{
+                        color: "rgba(255,255,255,0.72)",
+                        fontSize: { xs: 14, sm: 15 },
+                        maxWidth: 460,
+                        mx: "auto",
+                        lineHeight: 1.6,
+                    }}
+                >
+                    Recurring charges decoded — see exactly what you're paying for and cancel what you don't need.
+                </Typography>
+            </Box>
         </Box>
     );
 }
 
 export default TopBar;
-
-
-/**
- * Customization tips
- * 
- * Colors: Replace hard-coded hex values with your theme (e.g., theme.palette.primary.main) for better theming support.
- * Heights: If you increase the AppBar height, update the spacer <Toolbar /> to match so content doesn’t overlap.
- * Left/Right content: If you need a logo on the left and actions on the right, remove justifyContent: "center" and use a flex row with space-between, adding two containers inside the Toolbar.
- * Accessibility: AppBar/Toolbar/Typography are already accessible; keep button/icon contrast high if you add actions later.
- * 
- */

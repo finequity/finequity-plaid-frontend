@@ -65,6 +65,8 @@ export async function toRecurringItems(resp) {
                     s.personal_finance_category.detailed) || null,
         },
         predicted_next_date: s.predicted_next_date || null,
+        risk: s.flag_type || s.risk || "none",
+        risk_reason: s.explanation || s.risk_reason || null,
     });
 
     // Only active streams
