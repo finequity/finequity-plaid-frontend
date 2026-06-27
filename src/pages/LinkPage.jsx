@@ -334,7 +334,7 @@ const LinkPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [userId]);
+    }, [userId, phoneNumber]);
 
     useEffect(() => {
         if (!userId) {
