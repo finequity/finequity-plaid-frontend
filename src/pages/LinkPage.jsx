@@ -5,6 +5,7 @@ import TopBar, { PageHeader } from "../components/TopBar";
 import Footer from "../components/Footer";
 import Subscriptions from "../components/Subscriptions.jsx";
 import { toRecurringItems } from "../utils/recurring-data-formatter.js";
+import { formatUsPhoneNumber } from "../utils/phone-formatter.js";
 import { MOCK_RESPONSE } from "../mocks/recurring-mock-response.js";
 
 // MUI layout + typography
@@ -297,7 +298,9 @@ const LinkPage = () => {
     const [linkToken, setLinkToken] = useState(null);
     const [searchParams] = useSearchParams();
     const userId = searchParams.get("user_id");
-    const phoneNumber = searchParams.get("phone_number");
+    // phone_number may arrive with dashes, spaces, a "+1" prefix, or none of the
+    // above. Normalize to "+1XXXXXXXXXX"; null means missing/invalid.
+    const phoneNumber = formatUsPhoneNumber(searchParams.get("phone_number"));
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(true);
     const [subs, setSubs] = useState([]);
@@ -339,6 +342,13 @@ const LinkPage = () => {
     useEffect(() => {
         if (!userId) {
             console.error("Missing user_id");
+            setMessage("User ID missing!");
+            setLoading(false);
+            return;
+        }
+        if (!phoneNumber) {
+            console.error("Missing or invalid phone_number");
+            setMessage("Invalid phone number!");
             setLoading(false);
             return;
         }
@@ -363,7 +373,7 @@ const LinkPage = () => {
             return;
         }
         fetchFromApi();
-    }, [userId, fetchFromApi]);
+    }, [userId, phoneNumber, fetchFromApi]);
 
     const handlePlaidData = (items) => {
         if (Array.isArray(items)) {
