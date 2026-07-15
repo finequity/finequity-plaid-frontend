@@ -1,0 +1,35 @@
+name = "finequity-plaid-proxy"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+# KV namespaces. Create each once and paste the printed id below:
+#   npx wrangler kv namespace create USERS
+#   npx wrangler kv namespace create CACHE
+[[kv_namespaces]]
+binding = "USERS"   # user:<uid> → per-user secret (provisioned from Glide)
+id = "REPLACE_WITH_USERS_NAMESPACE_ID"
+
+[[kv_namespaces]]
+binding = "CACHE"   # tx:<uid> → cached recurring data (7-day TTL)
+id = "REPLACE_WITH_CACHE_NAMESPACE_ID"
+
+[vars]
+# Origin allowed to call this worker (the React app's own origin — stays the
+# Netlify domain even when the app is iframed inside Glide).
+# Use "http://localhost:3000" while developing locally.
+ALLOWED_ORIGIN = "http://localhost:3000"
+# Server-side cache TTL: 7 days.
+CACHE_TTL_SECONDS = "604800"
+
+# ── Secrets (never in this file) ─────────────────────────────────────────────
+# Set each one with: npx wrangler secret put <NAME>
+#
+#   PROVISION_PATH_KEY            random path segment for the Glide provision
+#                                 webhook (generate: openssl rand -hex 24)
+#   RETRIEVE_TRIGGER_URL          Pipedream retrieve-recurring trigger URL
+#   RETRIEVE_TRIGGER_AUTH_TOKEN   Bearer token for that trigger
+#   EXCHANGE_TRIGGER_URL          Pipedream public-token-exchange trigger URL
+#   EXCHANGE_TRIGGER_AUTH_TOKEN   Bearer token for that trigger
+#   PIPEDREAM_SECRET              (optional) sent as x-gateway-secret so
+#                                 Pipedream can verify calls come from this
+#                                 worker (GATEWAY_SECRET on the Pipedream side)
