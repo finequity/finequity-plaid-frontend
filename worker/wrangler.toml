@@ -17,7 +17,7 @@ id = "340de7b3b6a641a4b7302ed6a6a45a62"
 # Origin allowed to call this worker (the React app's own origin — stays the
 # Netlify domain even when the app is iframed inside Glide).
 # Use "http://localhost:3000" while developing locally.
-ALLOWED_ORIGIN = "http://localhost:3000"
+ALLOWED_ORIGIN = "https://finequity-subscription-track.netlify.app"
 # Server-side cache TTL: 7 days.
 CACHE_TTL_SECONDS = "604800"
 
