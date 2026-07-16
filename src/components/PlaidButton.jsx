@@ -11,7 +11,9 @@ import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
 import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
 import { toRecurringItems } from "../utils/recurring-data-formatter";
 
-const EXCHANGE_URL = process.env.REACT_APP_ACCESS_TOKEN_RECURRING_TRANSACTIONS_TRIGGER;
+// Token exchange goes through the Cloudflare Worker gateway (see ../../worker/),
+// which verifies the per-user proof and holds the Pipedream credentials.
+const EXCHANGE_URL = `${process.env.REACT_APP_WORKER_URL}/api/exchange`;
 
 const BENEFITS = [
     { icon: <LockRoundedIcon />, text: "Read-only access — no money moves" },
@@ -42,7 +44,7 @@ function Spinner() {
     );
 }
 
-export default function PlaidButton({ linkToken, onData, userId, phoneNumber }) {
+export default function PlaidButton({ linkToken, onData, uid, ts, proof }) {
     const [message, setMessage] = useState(null);
     const [isError, setIsError] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -50,7 +52,6 @@ export default function PlaidButton({ linkToken, onData, userId, phoneNumber }) 
     const { open, ready, error } = usePlaidLink({
         token: linkToken,
         onSuccess: async (public_token) => {
-            const uid = userId ?? localStorage.getItem("user_id");
             setLoading(true);
             setIsError(false);
             setMessage(null);
@@ -58,7 +59,7 @@ export default function PlaidButton({ linkToken, onData, userId, phoneNumber }) 
                 const res = await fetch(EXCHANGE_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ publicToken: public_token, userId: uid, phoneNumber }),
+                    body: JSON.stringify({ publicToken: public_token, uid, ts, proof }),
                 });
                 if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
                 const data = await res.json();

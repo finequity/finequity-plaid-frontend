@@ -1,11 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import PlaidButton from "../components/PlaidButton.jsx";
-import { useSearchParams } from "react-router-dom";
 import TopBar, { PageHeader } from "../components/TopBar";
 import Footer from "../components/Footer";
 import Subscriptions from "../components/Subscriptions.jsx";
 import { toRecurringItems } from "../utils/recurring-data-formatter.js";
-import { formatUsPhoneNumber } from "../utils/phone-formatter.js";
 import { MOCK_RESPONSE } from "../mocks/recurring-mock-response.js";
 
 // MUI layout + typography
@@ -25,28 +23,30 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 // Must remain false in production.
 const USE_MOCK = false;
 
-// ─── Cache config ──────────────────────────────────────────────────────────────
-const BASE_URL = process.env.REACT_APP_RETRIEVE_RECURRING_TRANSACTIONS_TRIGGER;
-const CACHE_TTL_MS = Number(process.env.REACT_APP_CACHE_TTL_MS) || 7 * 24 * 60 * 60 * 1000;
-const cacheKey = (uid) => `recurring_cache_v1:${uid}`;
+// ─── API config ────────────────────────────────────────────────────────────────
+// All requests go through the Cloudflare Worker gateway (see ../../worker/):
+// it holds the Pipedream secrets and caches recurring data server-side in KV,
+// so nothing sensitive is stored in the browser or shipped in this bundle.
+const WORKER_URL = process.env.REACT_APP_WORKER_URL;
 
-const readCache = (uid) => {
-    try {
-        const raw = localStorage.getItem(cacheKey(uid));
-        if (!raw) return null;
-        const obj = JSON.parse(raw);
-        if (!obj?.items || !Array.isArray(obj.items) || !obj.ts) return null;
-        if (Date.now() - obj.ts > CACHE_TTL_MS) return null;
-        return obj.items;
-    } catch {
-        return null;
+// ─── Auth from URL fragment ────────────────────────────────────────────────────
+// Glide embeds this app in a Web Embed iframe with #uid=..&ts=..&proof=..
+// (a fragment — browsers never send it to servers, so it stays out of logs).
+// Read it exactly once, then scrub it from the address bar. Idempotent so
+// re-renders (or StrictMode double-invokes) can't lose the credentials.
+let _authFromFragment = null;
+const readAuthFromFragment = () => {
+    if (_authFromFragment) return _authFromFragment;
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    _authFromFragment = {
+        uid: params.get("uid"),
+        ts: params.get("ts"),
+        proof: params.get("proof"),
+    };
+    if (window.location.hash) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
-};
-
-const writeCache = (uid, items) => {
-    try {
-        localStorage.setItem(cacheKey(uid), JSON.stringify({ ts: Date.now(), items }));
-    } catch { }
+    return _authFromFragment;
 };
 
 // ─── Sidebar: How It Works ─────────────────────────────────────────────────────
@@ -296,25 +296,31 @@ const TOP_OFFSET = 88; // AppBar height + 24px breathing room
 
 const LinkPage = () => {
     const [linkToken, setLinkToken] = useState(null);
-    const [searchParams] = useSearchParams();
-    const userId = searchParams.get("user_id");
-    // phone_number may arrive with dashes, spaces, a "+1" prefix, or none of the
-    // above. Normalize to "+1XXXXXXXXXX"; null means missing/invalid.
-    const phoneNumber = formatUsPhoneNumber(searchParams.get("phone_number"));
+    // Per-user proof minted by Glide; the Worker rejects any request whose
+    // proof is missing, forged, stale, or from an unprovisioned user.
+    const { uid, ts, proof } = readAuthFromFragment();
     const [message, setMessage] = useState("");
     const [loading, setLoading] = useState(true);
     const [subs, setSubs] = useState([]);
 
-    const fetchFromApi = useCallback(async () => {
-        if (!userId) return;
+    const fetchFromApi = useCallback(async (attempt = 0) => {
+        if (!uid) return;
         setLoading(true);
         setMessage("");
         try {
-            const res = await fetch(BASE_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId, phoneNumber }),
-            });
+            const res = await fetch(
+                `${WORKER_URL}/transactions?uid=${encodeURIComponent(uid)}` +
+                `&ts=${encodeURIComponent(ts)}&proof=${encodeURIComponent(proof)}`
+            );
+            if (res.status === 401 && attempt === 0) {
+                // KV eventual consistency right after provisioning — retry once.
+                await new Promise((r) => setTimeout(r, 2000));
+                return fetchFromApi(1);
+            }
+            if (res.status === 401) {
+                setMessage("Your session has expired. Please reopen this page from the app.");
+                return;
+            }
             if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
             const data = await res.json();
             const tag = data?.response_object?.tag;
@@ -322,7 +328,6 @@ const LinkPage = () => {
             if (tag === "recurring_data") {
                 const items = await toRecurringItems(data?.response_object?.data);
                 setSubs(items);
-                writeCache(userId, items);
                 setLinkToken(null);
                 setMessage(items.length ? "" : "No recurring transactions found.");
             } else if (tag === "link_token") {
@@ -337,23 +342,9 @@ const LinkPage = () => {
         } finally {
             setLoading(false);
         }
-    }, [userId, phoneNumber]);
+    }, [uid, ts, proof]);
 
     useEffect(() => {
-        if (!userId) {
-            console.error("Missing user_id");
-            setMessage("User ID missing!");
-            setLoading(false);
-            return;
-        }
-        if (!phoneNumber) {
-            console.error("Missing or invalid phone_number");
-            setMessage("Invalid phone number!");
-            setLoading(false);
-            return;
-        }
-        localStorage.setItem("user_id", userId);
-
         // ── Mock short-circuit ──────────────────────────────────────────────────
         if (USE_MOCK) {
             toRecurringItems(MOCK_RESPONSE.response_object.data).then((items) => {
@@ -364,21 +355,21 @@ const LinkPage = () => {
         }
         // ───────────────────────────────────────────────────────────────────────
 
-        const cached = readCache(userId);
-        if (cached && cached.length) {
-            setSubs(cached);
-            setLinkToken(null);
-            setMessage("");
+        if (!uid || !ts || !proof) {
+            console.error("Missing auth fragment (uid/ts/proof)");
+            setMessage("Please open this page from the app.");
             setLoading(false);
             return;
         }
+
+        // No client-side cache or storage: the Worker serves cached recurring
+        // data from KV, so every load is a single request either way.
         fetchFromApi();
-    }, [userId, phoneNumber, fetchFromApi]);
+    }, [uid, ts, proof, fetchFromApi]);
 
     const handlePlaidData = (items) => {
         if (Array.isArray(items)) {
             setSubs(items);
-            writeCache(userId, items);
             setLinkToken(null);
             setMessage(items.length ? "" : "No recurring transactions found.");
         }
@@ -507,7 +498,7 @@ const LinkPage = () => {
                         <Subscriptions items={subs} />
                     ) : linkToken ? (
                         <Box sx={{ display: "grid", placeItems: "center", px: 2, py: 6 }}>
-                            <PlaidButton linkToken={linkToken} userId={userId} phoneNumber={phoneNumber} onData={handlePlaidData} />
+                            <PlaidButton linkToken={linkToken} uid={uid} ts={ts} proof={proof} onData={handlePlaidData} />
                         </Box>
                     ) : (
                         <Box

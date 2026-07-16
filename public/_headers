@@ -1,0 +1,5 @@
+# Netlify header rules (copied into build/ by CRA).
+# Allow the app to be embedded in a Glide Web Embed iframe — and nowhere else.
+# Add your Glide app's custom domain here if you use one.
+/*
+  Content-Security-Policy: frame-ancestors https://*.glide.page

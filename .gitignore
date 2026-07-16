@@ -22,3 +22,8 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Cloudflare Worker local dev
+worker/.dev.vars
+worker/node_modules
+worker/.wrangler
