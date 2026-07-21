@@ -6,6 +6,7 @@ import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import RemoveRedEyeRoundedIcon from "@mui/icons-material/RemoveRedEyeRounded";
 import PaidRoundedIcon from "@mui/icons-material/PaidRounded";
 import RepeatRoundedIcon from "@mui/icons-material/RepeatRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
@@ -55,7 +56,7 @@ const RISK = {
     },
     worth_watching: {
         label: "WORTH WATCHING",
-        icon: <WarningAmberRoundedIcon />,
+        icon: <RemoveRedEyeRoundedIcon />,
         leftBorder: "#3b82f6",
         borderColor: "#93c5fd",
         bgColor: "#eff6ff",
@@ -138,17 +139,11 @@ function SubscriptionCard({ item }) {
                 display: "flex",
                 alignItems: "stretch",
                 borderRadius: 2,
+                // Plain flat card: neutral background, with the border colour carrying
+                // the risk status (red / amber / blue / green, grey when no status).
+                bgcolor: "#fff",
                 border: "1px solid",
                 borderColor: badge ? badge.borderColor : "#e2e8f0",
-                bgcolor: badge ? badge.bgColor : "#fff",
-                overflow: "hidden",
-                boxShadow: badge
-                    ? "none"
-                    : "0 1px 3px rgba(15,23,42,0.05)",
-                transition: "box-shadow 0.15s",
-                "&:hover": {
-                    boxShadow: badge ? "none" : "0 4px 12px rgba(15,23,42,0.08)",
-                },
             }}
         >
             <Box sx={{ flex: 1, px: { xs: 1.5, sm: 2.5 }, py: 2 }}>
@@ -194,16 +189,6 @@ function SubscriptionCard({ item }) {
                                 }}
                             />
                         </Tooltip>
-
-                        {/* Hover hint */}
-                        {item?.risk_reason && (
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
-                                <InfoOutlinedIcon sx={{ fontSize: 12, color: "#94a3b8" }} />
-                                <Typography sx={{ fontSize: 11, color: "#94a3b8", lineHeight: 1, fontStyle: "italic" }}>
-                                    Hover badge for explanation
-                                </Typography>
-                            </Box>
-                        )}
                     </Box>
                 )}
 
@@ -224,7 +209,8 @@ function SubscriptionCard({ item }) {
                         sx={{
                             fontWeight: 800,
                             fontSize: { xs: 14, sm: 15 },
-                            color: badge ? badge.textColor : "#0f172a",
+                            // Amount stays the standard dark text — no risk-colour tint.
+                            color: "#0f172a",
                             whiteSpace: "nowrap",
                             flexShrink: 0,
                         }}
@@ -268,6 +254,9 @@ export default function Subscriptions({ items = [] }) {
         const key = item?.risk ? item.risk.toLowerCase() : null;
         return key && key !== "none" && RISK[key];
     }).length;
+    // Any item with an explanation → show the single "hover badge" hint in the
+    // list header (instead of repeating it on every card).
+    const anyRiskReason = items.some((item) => item?.risk_reason);
 
     return (
         <Box sx={{ width: "100%", px: { xs: 0.5, sm: 1 }, pt: 1, pb: 4, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -365,6 +354,8 @@ export default function Subscriptions({ items = [] }) {
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "center",
+                                flexWrap: "wrap",
+                                gap: 1,
                                 px: { xs: 2, sm: 2.5 },
                                 py: 1.75,
                                 borderBottom: "1px solid #f1f5f9",
@@ -374,9 +365,25 @@ export default function Subscriptions({ items = [] }) {
                             <Typography sx={{ fontWeight: 700, fontSize: 15, color: "#0f172a" }}>
                                 Subscription List
                             </Typography>
-                            <Typography sx={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>
-                                {items.length} active · {toUSD(totalMonthly)}/mo
-                            </Typography>
+                            {anyRiskReason && (
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 0.6,
+                                        px: 1.25,
+                                        py: 0.5,
+                                        borderRadius: 999,
+                                        bgcolor: "#eff6ff",
+                                        border: "1px solid #bfdbfe",
+                                    }}
+                                >
+                                    <InfoOutlinedIcon sx={{ fontSize: 15, color: "#1d4ed8" }} />
+                                    <Typography sx={{ fontSize: 12.5, color: "#1d4ed8", fontWeight: 600, lineHeight: 1, whiteSpace: "nowrap" }}>
+                                        Hover badge for explanation
+                                    </Typography>
+                                </Box>
+                            )}
                         </Box>
 
                         {/* Scrollable list — fills the fixed card height */}
