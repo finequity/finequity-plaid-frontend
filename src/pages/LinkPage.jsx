@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import PlaidButton from "../components/PlaidButton.jsx";
 import TopBar, { PageHeader } from "../components/TopBar";
 import Footer from "../components/Footer";
@@ -11,6 +11,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Divider from "@mui/material/Divider";
+import GlobalStyles from "@mui/material/GlobalStyles";
 
 // Icons for sidebars (Risk Guide + security footer only)
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
@@ -21,7 +22,7 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 // ─── Mock mode ─────────────────────────────────────────────────────────────────
 // Set to true to bypass the API and use local test data (see ../mocks/recurring-mock-response.js).
 // Must remain false in production.
-const USE_MOCK = false;
+const USE_MOCK = true;
 
 // ─── API config ────────────────────────────────────────────────────────────────
 // All requests go through the Cloudflare Worker gateway (see ../../worker/):
@@ -408,6 +409,8 @@ const LinkPage = () => {
     // ── Shared page shell ──────────────────────────────────────────────────────
     const PageShell = ({ children }) => (
         <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+            {/* Strip default document margins so the app sits flush inside the Glide embed. */}
+            <GlobalStyles styles={{ "html, body, #root": { margin: 0, padding: 0 }, body: { overflowX: "hidden" } }} />
             <TopBar />
             <PageHeader />
             <Box sx={{ flex: 1, bgcolor: "#f8fafc" }}>
@@ -421,24 +424,6 @@ const LinkPage = () => {
     // Hidden when the user needs to connect via Plaid (no subs yet, linkToken present)
     // or when showing a fallback error message.
     const showSidebar = loading || subs.length > 0;
-
-    // Match the right column to the sidebar's height. We measure it directly rather
-    // than rely on flex `stretch` propagating through nested wrappers, so the content
-    // card has a definite height to fill (and the list can grow cards into it).
-    const sidebarRef = useRef(null);
-    const [sidebarH, setSidebarH] = useState(0);
-    useEffect(() => {
-        const el = sidebarRef.current;
-        if (!el || typeof ResizeObserver === "undefined") {
-            setSidebarH(0);
-            return;
-        }
-        const update = () => setSidebarH(el.offsetHeight);
-        update();
-        const ro = new ResizeObserver(update);
-        ro.observe(el);
-        return () => ro.disconnect();
-    }, [showSidebar, subs, loading]);
 
     return (
         <PageShell>
@@ -457,7 +442,6 @@ const LinkPage = () => {
                 {/* ── Left column: hidden during connect / error states ── */}
                 {showSidebar && (
                     <Box
-                        ref={sidebarRef}
                         sx={{
                             order: { xs: 2, lg: 1 },
                             width: { xs: "100%", lg: SIDEBAR_W },
@@ -487,9 +471,11 @@ const LinkPage = () => {
                         minWidth: 0,
                         display: "flex",
                         flexDirection: "column",
-                        // Fixed to the sidebar's height so the list scrolls inside the
-                        // card instead of growing the card. `auto` below lg (stacked).
-                        height: { lg: sidebarH ? `${sidebarH}px` : "auto" },
+                        // Sized to its own content — the subscription list owns a fixed
+                        // scroll height (see Subscriptions.jsx), so the column no longer
+                        // needs to be matched to the sidebar. flex-start keeps it from
+                        // stretching to the sidebar's height and leaving empty card space.
+                        alignSelf: "flex-start",
                     }}
                 >
                     {loading ? (

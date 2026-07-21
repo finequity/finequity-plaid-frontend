@@ -10,6 +10,7 @@ import PaidRoundedIcon from "@mui/icons-material/PaidRounded";
 import RepeatRoundedIcon from "@mui/icons-material/RepeatRounded";
 import ReportProblemRoundedIcon from "@mui/icons-material/ReportProblemRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 
 /* --------------------------------------------------------------------------
  * Helpers
@@ -36,6 +37,7 @@ const fmtDate = (iso) =>
 const RISK = {
     likely_fraud: {
         label: "LIKELY FRAUD",
+        icon: <WarningAmberRoundedIcon />,
         leftBorder: "#ef4444",
         borderColor: "#fca5a5",
         bgColor: "#fff5f5",
@@ -44,6 +46,7 @@ const RISK = {
     },
     likely_scam: {
         label: "LIKELY SCAM",
+        icon: <WarningAmberRoundedIcon />,
         leftBorder: "#f59e0b",
         borderColor: "#fcd34d",
         bgColor: "#fffbeb",
@@ -52,12 +55,25 @@ const RISK = {
     },
     worth_watching: {
         label: "WORTH WATCHING",
+        icon: <WarningAmberRoundedIcon />,
         leftBorder: "#3b82f6",
         borderColor: "#93c5fd",
         bgColor: "#eff6ff",
         chipSx: { color: "#1d4ed8", borderColor: "#93c5fd", bgcolor: "#dbeafe" },
         textColor: "#1d4ed8",
     },
+};
+
+// Badge for items with no risk indicators — mirrors the light-green
+// "NONE" entry in the Risk Flag Guide sidebar (LinkPage.jsx RISK_LEVELS).
+const NONE_BADGE = {
+    label: "NONE",
+    icon: <CheckCircleRoundedIcon />,
+    leftBorder: "#22c55e",
+    borderColor: "#86efac",
+    bgColor: "#f0fdf4",
+    chipSx: { color: "#166534", borderColor: "#86efac", bgcolor: "#dcfce7" },
+    textColor: "#166534",
 };
 
 /* --------------------------------------------------------------------------
@@ -112,8 +128,9 @@ function StatCard({ icon, label, value, accent }) {
  * ------------------------------------------------------------------------*/
 
 function SubscriptionCard({ item }) {
-    const riskKey = item?.risk && item.risk.toLowerCase() !== "none" ? item.risk : null;
-    const config = riskKey ? RISK[riskKey] : null;
+    const riskKey = item?.risk ? item.risk.toLowerCase() : null;
+    const config = riskKey && riskKey !== "none" ? RISK[riskKey] : null;
+    const badge = config || (riskKey === "none" ? NONE_BADGE : null);
 
     return (
         <Box
@@ -122,21 +139,21 @@ function SubscriptionCard({ item }) {
                 alignItems: "stretch",
                 borderRadius: 2,
                 border: "1px solid",
-                borderColor: config ? config.borderColor : "#e2e8f0",
-                bgcolor: config ? config.bgColor : "#fff",
+                borderColor: badge ? badge.borderColor : "#e2e8f0",
+                bgcolor: badge ? badge.bgColor : "#fff",
                 overflow: "hidden",
-                boxShadow: config
+                boxShadow: badge
                     ? "none"
                     : "0 1px 3px rgba(15,23,42,0.05)",
                 transition: "box-shadow 0.15s",
                 "&:hover": {
-                    boxShadow: config ? "none" : "0 4px 12px rgba(15,23,42,0.08)",
+                    boxShadow: badge ? "none" : "0 4px 12px rgba(15,23,42,0.08)",
                 },
             }}
         >
             <Box sx={{ flex: 1, px: { xs: 1.5, sm: 2.5 }, py: 2 }}>
                 {/* Risk chip + hover hint */}
-                {config && (
+                {badge && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 1 }}>
                         <Tooltip
                             title={item?.risk_reason || ""}
@@ -161,8 +178,8 @@ function SubscriptionCard({ item }) {
                             }}
                         >
                             <Chip
-                                icon={<WarningAmberRoundedIcon />}
-                                label={config.label}
+                                icon={badge.icon}
+                                label={badge.label}
                                 size="small"
                                 variant="filled"
                                 sx={{
@@ -173,7 +190,7 @@ function SubscriptionCard({ item }) {
                                     borderRadius: "6px",
                                     cursor: "help",
                                     "& .MuiChip-icon": { fontSize: "13px !important", color: "inherit" },
-                                    ...config.chipSx,
+                                    ...badge.chipSx,
                                 }}
                             />
                         </Tooltip>
@@ -207,7 +224,7 @@ function SubscriptionCard({ item }) {
                         sx={{
                             fontWeight: 800,
                             fontSize: { xs: 14, sm: 15 },
-                            color: config ? config.textColor : "#0f172a",
+                            color: badge ? badge.textColor : "#0f172a",
                             whiteSpace: "nowrap",
                             flexShrink: 0,
                         }}
@@ -229,14 +246,28 @@ function SubscriptionCard({ item }) {
  * Main component
  * ------------------------------------------------------------------------*/
 
+// Fixed height for the scrollable list, sized to show exactly VISIBLE_CARDS cards
+// then scroll. Keeping it fixed (rather than measured) means the container size —
+// and its scrollbar — stay identical across loads/refreshes, regardless of how many
+// items come back or how tall the sidebar is.
+const VISIBLE_CARDS = 5;
+// Approx. rendered height of one card row: the card itself (risk badge + name +
+// frequency inside 16px padding ≈ 106px) plus its 12px wrapper gap and ~1px divider.
+// Every item carries a risk badge (risk defaults to "none"), so cards are near-uniform
+// and this stays stable. Bump slightly if card content grows (e.g. two-line names).
+const CARD_ROW = 120;      // px per card row
+const LIST_V_PADDING = 24; // Stack py:1.5 => 12px top + 12px bottom
+const LIST_HEIGHT = VISIBLE_CARDS * CARD_ROW + LIST_V_PADDING; // ≈ 624px → five cards
+
 export default function Subscriptions({ items = [] }) {
     const totalMonthly = items.reduce(
         (sum, item) => sum + Math.abs(Number(item?.average_amount?.amount ?? 0)),
         0
     );
-    const flaggedCount = items.filter(
-        (item) => item?.risk && item.risk.toLowerCase() !== "none" && RISK[item.risk]
-    ).length;
+    const flaggedCount = items.filter((item) => {
+        const key = item?.risk ? item.risk.toLowerCase() : null;
+        return key && key !== "none" && RISK[key];
+    }).length;
 
     return (
         <Box sx={{ width: "100%", px: { xs: 0.5, sm: 1 }, pt: 1, pb: 4, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
@@ -355,9 +386,11 @@ export default function Subscriptions({ items = [] }) {
                             sx={{
                                 px: { xs: 1.5, sm: 2 },
                                 py: 1.5,
-                                flex: 1,
-                                minHeight: 0,
-                                overflowY: "auto",
+                                // Fixed-height, always-scrollable region: the scrollbar stays
+                                // present at all times and the container size never shifts
+                                // between loads (no dependency on item count or sidebar height).
+                                height: LIST_HEIGHT,
+                                overflowY: "scroll",
                                 // Slim, unobtrusive scrollbar
                                 scrollbarWidth: "thin",
                                 scrollbarColor: "#cbd5e1 transparent",

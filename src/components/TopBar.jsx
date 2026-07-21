@@ -9,10 +9,19 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 
 const BAR_H = { xs: 56, sm: 64 };
 
+// Sticky top AppBar disabled for the Glide embed — Glide renders its own top nav,
+// so the in-app fixed bar was redundant chrome. Flip to true to bring it back.
+const SHOW_STICKY_BAR = false;
+
 function TopBar() {
     return (
         <Box>
+            {/* CssBaseline stays even with the bar disabled — it resets the
+                browser's default body margin so the embed has no perimeter gap. */}
             <CssBaseline />
+
+            {SHOW_STICKY_BAR && (
+              <>
             <AppBar
                 position="fixed"
                 sx={(theme) => ({
@@ -75,6 +84,8 @@ function TopBar() {
 
             {/* Spacer so content doesn't hide under the fixed bar */}
             <Toolbar sx={{ minHeight: BAR_H }} />
+              </>
+            )}
         </Box>
     );
 }
