@@ -379,7 +379,7 @@ export default function Subscriptions({ items = [] }) {
                                     }}
                                 >
                                     <InfoOutlinedIcon sx={{ fontSize: 15, color: "#1d4ed8" }} />
-                                    <Typography sx={{ fontSize: 12.5, color: "#1d4ed8", fontWeight: 600, lineHeight: 1, whiteSpace: "nowrap" }}>
+                                    <Typography sx={{ fontSize: 12.5, color: "#64748b", fontWeight: 600, fontStyle: "italic", lineHeight: 1, whiteSpace: "nowrap" }}>
                                         Hover badge for explanation
                                     </Typography>
                                 </Box>
