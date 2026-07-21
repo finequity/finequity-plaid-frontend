@@ -22,7 +22,7 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 // ─── Mock mode ─────────────────────────────────────────────────────────────────
 // Set to true to bypass the API and use local test data (see ../mocks/recurring-mock-response.js).
 // Must remain false in production.
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 // ─── API config ────────────────────────────────────────────────────────────────
 // All requests go through the Cloudflare Worker gateway (see ../../worker/):
