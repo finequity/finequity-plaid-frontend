@@ -139,11 +139,25 @@ function SubscriptionCard({ item }) {
                 display: "flex",
                 alignItems: "stretch",
                 borderRadius: 2,
-                // Plain flat card: neutral background, with the border colour carrying
-                // the risk status (red / amber / blue / green, grey when no status).
+                // Black-bordered card with a subtle raise: a faint top bevel highlight
+                // plus a soft lift shadow. Risk status is conveyed by the badge chip.
                 bgcolor: "#fff",
                 border: "1px solid",
-                borderColor: badge ? badge.borderColor : "#e2e8f0",
+                borderColor: "#0f172a",
+                boxShadow: [
+                    "inset 0 1px 0 rgba(255,255,255,0.7)", // subtle top bevel highlight
+                    "0 1px 2px rgba(15,23,42,0.10)",       // contact shadow
+                    "0 3px 6px rgba(15,23,42,0.08)",       // gentle lift
+                ].join(", "),
+                transition: "box-shadow 0.15s, transform 0.15s",
+                "&:hover": {
+                    boxShadow: [
+                        "inset 0 1px 0 rgba(255,255,255,0.7)",
+                        "0 2px 4px rgba(15,23,42,0.12)",
+                        "0 5px 12px rgba(15,23,42,0.10)",
+                    ].join(", "),
+                    transform: "translateY(-1px)",
+                },
             }}
         >
             <Box sx={{ flex: 1, px: { xs: 1.5, sm: 2.5 }, py: 2 }}>
