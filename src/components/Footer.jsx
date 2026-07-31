@@ -5,10 +5,13 @@ import Stack from "@mui/material/Stack";
 import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
 
+// Same booking link the post-scan support CTA uses (PostScanPanel.jsx).
+const SUPPORT_URL = process.env.REACT_APP_SUPPORT_SCHEDULE_URL || "";
+
 const LINKS = [
     { label: "Privacy Policy", href: "#" },
     { label: "Terms of Use", href: "#" },
-    { label: "Support", href: "#" },
+    { label: "Support", href: SUPPORT_URL || "#", external: Boolean(SUPPORT_URL) },
 ];
 
 export default function Footer() {
@@ -61,11 +64,13 @@ export default function Footer() {
 
                 {/* Links column */}
                 <Stack direction={{ xs: "row", sm: "column" }} spacing={{ xs: 0, sm: 1.25 }} sx={{ flexWrap: "wrap", gap: { xs: 1.5, sm: 0 } }}>
-                    {LINKS.map(({ label, href }) => (
+                    {LINKS.map(({ label, href, external }) => (
                         <Box
                             key={label}
                             component="a"
                             href={href}
+                            target={external ? "_blank" : undefined}
+                            rel={external ? "noopener noreferrer" : undefined}
                             sx={{
                                 fontSize: 13,
                                 color: "rgba(255,255,255,0.7)",

@@ -90,7 +90,19 @@ function TopBar() {
     );
 }
 
-export function PageHeader() {
+/**
+ * Page header banner.
+ *
+ * Copy is driven by the caller so the header can carry the first-run framing
+ * ("Step 1 of 3 · First-time setup") during onboarding and fall back to the
+ * standard day-to-day title afterwards. `children` hosts the step indicator.
+ */
+export function PageHeader({
+    eyebrow = null,
+    title = "Your Subscriptions",
+    subtitle = "Recurring charges decoded — see exactly what you're paying for and cancel what you don't need.",
+    children = null,
+}) {
     return (
         <Box
             sx={{
@@ -121,6 +133,34 @@ export function PageHeader() {
             ))}
 
             <Box sx={{ position: "relative", zIndex: 1 }}>
+                {eyebrow && (
+                    <Box
+                        sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            px: 1.5,
+                            py: 0.6,
+                            mb: 1.5,
+                            borderRadius: 999,
+                            bgcolor: "rgba(255,255,255,0.12)",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                        }}
+                    >
+                        <Typography
+                            sx={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                color: "rgba(255,255,255,0.85)",
+                                letterSpacing: "0.08em",
+                                textTransform: "uppercase",
+                                lineHeight: 1,
+                            }}
+                        >
+                            {eyebrow}
+                        </Typography>
+                    </Box>
+                )}
+
                 <Typography
                     variant="h4"
                     sx={{
@@ -131,7 +171,7 @@ export function PageHeader() {
                         mb: 1,
                     }}
                 >
-                    Your Subscriptions
+                    {title}
                 </Typography>
                 <Typography
                     sx={{
@@ -142,8 +182,10 @@ export function PageHeader() {
                         lineHeight: 1.6,
                     }}
                 >
-                    Recurring charges decoded — see exactly what you're paying for and cancel what you don't need.
+                    {subtitle}
                 </Typography>
+
+                {children}
             </Box>
         </Box>
     );

@@ -65,6 +65,16 @@ const RISK = {
     },
 };
 
+/**
+ * Number of items carrying a known risk flag. Exported so the post-scan dialog
+ * reports the same count as the "Flagged for review" stat on this page.
+ */
+export const countFlagged = (items = []) =>
+    items.filter((item) => {
+        const key = item?.risk ? item.risk.toLowerCase() : null;
+        return Boolean(key && key !== "none" && RISK[key]);
+    }).length;
+
 // Badge for items with no risk indicators — mirrors the light-green
 // "NONE" entry in the Risk Flag Guide sidebar (LinkPage.jsx RISK_LEVELS).
 const NONE_BADGE = {
@@ -132,6 +142,9 @@ function SubscriptionCard({ item }) {
     const riskKey = item?.risk ? item.risk.toLowerCase() : null;
     const config = riskKey && riskKey !== "none" ? RISK[riskKey] : null;
     const badge = config || (riskKey === "none" ? NONE_BADGE : null);
+    // "None" has no finding to explain, so it gets no tooltip — an empty title
+    // makes MUI skip the popper entirely.
+    const tooltipText = config ? (item?.risk_reason || "") : "";
 
     return (
         <Box
@@ -165,7 +178,7 @@ function SubscriptionCard({ item }) {
                 {badge && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 1 }}>
                         <Tooltip
-                            title={item?.risk_reason || ""}
+                            title={tooltipText}
                             placement="top"
                             arrow
                             enterDelay={100}
@@ -197,7 +210,7 @@ function SubscriptionCard({ item }) {
                                     fontWeight: 800,
                                     letterSpacing: 0.6,
                                     borderRadius: "6px",
-                                    cursor: "help",
+                                    cursor: tooltipText ? "help" : "default",
                                     "& .MuiChip-icon": { fontSize: "13px !important", color: "inherit" },
                                     ...badge.chipSx,
                                 }}
@@ -264,13 +277,14 @@ export default function Subscriptions({ items = [] }) {
         (sum, item) => sum + Math.abs(Number(item?.average_amount?.amount ?? 0)),
         0
     );
-    const flaggedCount = items.filter((item) => {
+    const flaggedCount = countFlagged(items);
+    // Any *flagged* item with copy → show the single "hover badge" hint in the
+    // list header (instead of repeating it on every card). "None" badges are
+    // excluded because they carry no tooltip to hover for.
+    const anyRiskReason = items.some((item) => {
         const key = item?.risk ? item.risk.toLowerCase() : null;
-        return key && key !== "none" && RISK[key];
-    }).length;
-    // Any item with an explanation → show the single "hover badge" hint in the
-    // list header (instead of repeating it on every card).
-    const anyRiskReason = items.some((item) => item?.risk_reason);
+        return Boolean(key && key !== "none" && RISK[key] && item?.risk_reason);
+    });
 
     return (
         <Box sx={{ width: "100%", px: { xs: 0.5, sm: 1 }, pt: 1, pb: 4, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>

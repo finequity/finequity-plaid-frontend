@@ -7,8 +7,7 @@ import Stack from "@mui/material/Stack";
 import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
 import LockRoundedIcon from "@mui/icons-material/LockRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
-import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
+import TextsmsRoundedIcon from "@mui/icons-material/TextsmsRounded";
 import { toRecurringItems } from "../utils/recurring-data-formatter";
 
 // Token exchange goes through the Cloudflare Worker gateway (see ../../worker/),
@@ -17,11 +16,10 @@ const EXCHANGE_URL = `${process.env.REACT_APP_WORKER_URL}/api/exchange`;
 
 const BENEFITS = [
     { icon: <LockRoundedIcon />, text: "Read-only access — no money moves" },
-    { icon: <VisibilityOffRoundedIcon />, text: "Your credentials are never stored" },
-    { icon: <ShieldRoundedIcon />, text: "Bank-level 256-bit encryption via Plaid" },
+    { icon: <TextsmsRoundedIcon />, text: "One-time setup — after this we text you updates" },
 ];
 
-function Spinner() {
+function Spinner({ label }) {
     return (
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, py: 6 }}>
             <Box
@@ -37,20 +35,35 @@ function Spinner() {
                 aria-label="Loading"
             />
             <Typography sx={{ fontSize: 14, color: "#94a3b8", fontWeight: 500 }}>
-                Fetching your subscriptions…
+                {label}
             </Typography>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </Box>
     );
 }
 
-export default function PlaidButton({ linkToken, onData, uid, ts, proof }) {
+/**
+ * First bank connection — step 1 of onboarding.
+ *
+ * The exchange trigger no longer returns recurring data: it persists the access
+ * token and answers { response_object: { tag: "storage_success" } }. So a
+ * successful link ends this step and hands off to the "Onboarding complete"
+ * screen (onLinked), where the user runs their first scan on demand.
+ *
+ * onData is kept for the legacy shape — an exchange that still answers with
+ * `recurring_data` skips straight to the results list.
+ *
+ * demo=true drives the same flow off local data (no Plaid, no network) so the
+ * onboarding walkthrough can be shown end-to-end. See LinkPage's USE_MOCK.
+ */
+export default function PlaidButton({ linkToken, onData, onLinked, uid, ts, proof, demo = false }) {
     const [message, setMessage] = useState(null);
     const [isError, setIsError] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const { open, ready, error } = usePlaidLink({
-        token: linkToken,
+        // In demo mode there is no real link token; Plaid Link is never opened.
+        token: demo ? null : linkToken,
         onSuccess: async (public_token) => {
             setLoading(true);
             setIsError(false);
@@ -63,20 +76,38 @@ export default function PlaidButton({ linkToken, onData, uid, ts, proof }) {
                 });
                 if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
                 const data = await res.json();
-                const items = await toRecurringItems(data?.response_object?.data);
-                onData?.(items);
+                const tag = data?.response_object?.tag;
+
+                if (tag === "storage_success") {
+                    onLinked?.();
+                } else if (tag === "recurring_data") {
+                    // Legacy exchange workflow: data came back with the exchange.
+                    const items = await toRecurringItems(data?.response_object?.data);
+                    onData?.(items);
+                } else {
+                    throw new Error(`Unexpected exchange response tag: ${tag ?? "none"}`);
+                }
             } catch (e) {
                 console.error(e);
                 setIsError(true);
-                setMessage("There was an error retrieving recurring transactions.");
-                onData?.([]);
+                setMessage("We couldn't finish connecting your account. Please refresh and try again.");
             } finally {
                 setLoading(false);
             }
         },
     });
 
-    if (loading) return <Spinner />;
+    // Demo: stand in for the Plaid handoff + token exchange, then land on the
+    // "Onboarding complete" screen exactly as the live flow does.
+    const startDemoLink = () => {
+        setLoading(true);
+        setTimeout(() => {
+            setLoading(false);
+            onLinked?.();
+        }, 1400);
+    };
+
+    if (loading) return <Spinner label="Securing your connection…" />;
 
     return (
         <Box sx={{ maxWidth: 560, mx: "auto", px: { xs: 2, sm: 0 } }} aria-busy={loading}>
@@ -136,6 +167,27 @@ export default function PlaidButton({ linkToken, onData, uid, ts, proof }) {
                         <AccountBalanceRoundedIcon sx={{ color: "#fff", fontSize: 32 }} />
                     </Box>
 
+                    {/* First-run framing: this screen is setup, not the day-to-day app. */}
+                    <Box
+                        sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 0.6,
+                            px: 1.25,
+                            py: 0.5,
+                            mb: 1.25,
+                            borderRadius: 999,
+                            bgcolor: "rgba(255,255,255,0.12)",
+                            border: "1px solid rgba(255,255,255,0.2)",
+                            position: "relative",
+                            zIndex: 1,
+                        }}
+                    >
+                        <Typography sx={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.85)", letterSpacing: "0.08em", lineHeight: 1 }}>
+                            ONE-TIME SETUP · STEP 1
+                        </Typography>
+                    </Box>
+
                     <Typography
                         sx={{
                             color: "#fff",
@@ -159,7 +211,8 @@ export default function PlaidButton({ linkToken, onData, uid, ts, proof }) {
                             zIndex: 1,
                         }}
                     >
-                        Securely scan your transactions to identify recurring subscriptions and charges.
+                        Link your account once so we can find your recurring charges. After
+                        this, monitoring runs on its own — no need to come back here.
                     </Typography>
                 </Box>
 
@@ -209,8 +262,8 @@ export default function PlaidButton({ linkToken, onData, uid, ts, proof }) {
                         variant="contained"
                         size="large"
                         startIcon={<AccountBalanceRoundedIcon />}
-                        onClick={() => open()}
-                        disabled={!ready}
+                        onClick={() => (demo ? startDemoLink() : open())}
+                        disabled={!demo && !ready}
                         sx={{
                             borderRadius: "12px",
                             fontWeight: 700,
@@ -254,7 +307,7 @@ export default function PlaidButton({ linkToken, onData, uid, ts, proof }) {
                         </Box>
                     )}
 
-                    {error && (
+                    {error && !demo && (
                         <Typography sx={{ fontSize: 12, color: "#ef4444", textAlign: "center" }}>
                             Couldn't initialize Plaid Link. Please refresh and try again.
                         </Typography>

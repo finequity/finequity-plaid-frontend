@@ -45,7 +45,9 @@ npx wrangler deploy
 ```
 
 Then set `REACT_APP_WORKER_URL` (no trailing slash) in Netlify's env vars and
-redeploy the frontend.
+redeploy the frontend. Optionally set `REACT_APP_SUPPORT_SCHEDULE_URL` there too
+— the booking link behind the post-first-scan "Schedule a conversation" CTA. Left
+unset, that card points users at SMS instead of showing a dead button.
 
 ## Glide side (summary)
 

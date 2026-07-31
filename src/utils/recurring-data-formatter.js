@@ -16,6 +16,8 @@
  *       - personal_finance_category.detailed
  *       - predicted_next_date
  *       - is_active (boolean)  ← used to filter active streams only
+ *       - flag_type            ← risk level driving the badge
+ *       - sms_message / explanation ← badge tooltip copy, in that order of preference
  *
  * OUTPUT:
  *   An array of normalized items:
@@ -66,7 +68,14 @@ export async function toRecurringItems(resp) {
         },
         predicted_next_date: s.predicted_next_date || null,
         risk: s.flag_type || s.risk || "none",
-        risk_reason: s.explanation || s.risk_reason || null,
+        // Badge tooltip copy. Prefer sms_message — the wording the user would
+        // actually receive by text — and fall back to the longer analyst
+        // explanation when a stream carries no SMS copy, so the badge is never
+        // left with an empty tooltip.
+        risk_reason:
+            (typeof s.sms_message === "string" && s.sms_message.trim())
+                ? s.sms_message.trim()
+                : (s.explanation || s.risk_reason || null),
     });
 
     // Only active streams

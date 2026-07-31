@@ -17,7 +17,10 @@
  *   POST /api/exchange      { uid, ts, proof, publicToken }  (Plaid exchange)
  *
  * Data responses mirror Pipedream's shape ({ response_object: { tag, data } })
- * so the frontend handles cache hits and live fetches identically.
+ * so the frontend handles cache hits and live fetches identically. Tags in use:
+ *   link_token       — no access token stored yet; the user must connect a bank
+ *   storage_success  — /api/exchange stored the access token (no data scanned yet)
+ *   recurring_data   — recurring streams, live from Pipedream or from KV
  */
 
 const enc = new TextEncoder();
@@ -175,6 +178,13 @@ async function handleTransactions(uid, user, env) {
     return json(upstream, 200, env);
 }
 
+/**
+ * Plaid public-token exchange. The trigger persists the access token and
+ * answers { response_object: { tag: "storage_success", ... } } — no recurring
+ * data comes back with it, so nothing is cached here and the frontend runs the
+ * user's first scan afterwards via GET /transactions. cacheRecurringData is
+ * still called for the legacy shape, where the exchange returned the data too.
+ */
 async function handleExchange(body, user, env) {
     const { uid, publicToken } = body;
     if (!publicToken) return json({ error: "Missing publicToken" }, 400, env);

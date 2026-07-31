@@ -30,17 +30,53 @@ A React interface that lets a user connect a bank via **Plaid** and view **recur
 
 ## How It Works (High Level)
 
+The app is a **one-time onboarding portal**: connect a bank once, run a first
+scan, and from then on monitoring and alerts happen automatically over SMS.
+`LinkPage.jsx` walks users through that as a small stage machine:
+
+| Stage | What the user sees | Leaves when |
+| --- | --- | --- |
+| `LOADING` | Spinner | `/transactions` answers |
+| `CONNECT` | Plaid connect card (step 1 of 3) | Bank linked |
+| `ONBOARDED` | **Onboarding complete** screen (step 2 of 3) | “Show my subscriptions” clicked |
+| `SCANNING` | First-scan spinner | Recurring data returns |
+| `RESULTS` | Subscription list + post-scan panel (step 3 of 3) | — |
+| `MESSAGE` | Expired session / error / no data | — |
+
+Returning users whose recurring data is already cached land straight in
+`RESULTS` with no setup framing — the first run is deliberately the only time
+the step indicator and onboarding copy appear.
+
 - **LinkPage.jsx** (main page)
-  - Reads `user_id` from the URL (e.g. `frontend_url/link?user_id=abc123`).
-  - Checks a **local cache** for this user:
-    - If **fresh** → **renders** the Subscriptions grid.
-    - If missing/expired → **calls your backend** once to get either a Plaid `link_token` or immediate `recurring_data`.
-  - When the user completes Plaid Link, the page receives `recurring_data` and renders it immediately, updating the cache.
+  - Reads `uid`/`ts`/`proof` from the URL **fragment** (set by Glide) and scrubs it.
+  - Calls the Worker's `/transactions` once: `recurring_data` → `RESULTS`,
+    `link_token` → `CONNECT`.
+  - Owns the stage machine above, including the first scan triggered from the
+    onboarding-complete screen.
 
 - **PlaidButton.jsx**
   - Renders the Plaid Link button using the `link_token`.
-  - On success, calls the pipedream backend to “exchange” the `public_token` for an `access_token`.
-  - The `access_token` is used to make a request to **Plaid** for a list of recurring subscriptions. The component passes this list up to `LinkPage` via `onData(items)`.
+  - On success, posts the `public_token` to the Worker's `/api/exchange`.
+  - The exchange **persists the access token and returns `storage_success`** — no
+    recurring data comes back with it. The component reports that up via
+    `onLinked()`; `LinkPage` then shows the onboarding-complete screen, and the
+    first scan happens later through `/transactions`.
+  - Still handles the legacy `recurring_data` exchange shape via `onData(items)`.
+
+- **OnboardingComplete.jsx**
+  - Post-link reassurance: setup is finished, monitoring is automatic, signing
+    back in is optional. Carries the “Show my subscriptions” CTA that runs the
+    first scan.
+
+- **PostScanPanel.jsx**
+  - Shown under the results: restates that monitoring continues over SMS, and
+    offers a call with the support team for questions about the findings
+    (booking link from `REACT_APP_SUPPORT_SCHEDULE_URL`; falls back to SMS when
+    unset).
+
+- **OnboardingSteps.jsx**
+  - Connect bank → First scan → Your results indicator, rendered in the page
+    header during onboarding only.
 
 - **Subscriptions (CardGrid)**
   - Material UI **Cards** that are responsive and uniform
@@ -56,13 +92,18 @@ A React interface that lets a user connect a bank via **Plaid** and view **recur
 ```
 src/
   components/
-    TopBar.jsx                    # Sticky AppBar + exported PageHeader
-    PlaidButton.jsx               # Plaid Link; returns recurring_data via onData(...)
+    TopBar.jsx                    # AppBar + exported PageHeader (stage-aware copy)
+    PlaidButton.jsx               # Plaid Link; reports success via onLinked()
+    OnboardingComplete.jsx        # "You're all set" screen + first-scan CTA
+    OnboardingSteps.jsx           # 3-step first-run progress indicator
     Subscriptions.jsx             # Renders the cards
+    PostScanPanel.jsx             # SMS monitoring recap + schedule-a-call CTA
   pages/
-    LinkPage.jsx                  # Main page: caching + fetch + render logic
+    LinkPage.jsx                  # Main page: onboarding stage machine + fetching
   utils/
     recurring-data-formatter.js   # Contains method for formatting recurring subscriptions in a form suitable for card display
+  mocks/
+    recurring-mock-response.js    # Demo data (USE_MOCK replays the onboarding path)
   App.jsx, index.jsx              # App bootstrap
 
 ```
@@ -102,10 +143,14 @@ src/
   { "response_object": { "tag": "recurring_data", "userId": "BgK5628e97e9-72J", "data": {...} } }
   ```
 
-- **Exchange (after Plaid Link success)**: returns
+- **Exchange (after Plaid Link success)**: stores the access token and returns
   ```json
-  { "response_object": { "tag": "recurring_data", "userId": "BgK5628e97e9-72J", "data": {...} } }
+  { "response_object": { "tag": "storage_success", "userId": "BgK5628e97e9-72J", "data": "Access token persisted to the data store successfully!" } }
   ```
+  No recurring data comes back here. The UI shows the onboarding-complete screen
+  and fetches the first scan from **Retrieve** when the user asks for it.
+  (The legacy `recurring_data` exchange response is still handled — it skips
+  straight to the results list.)
 
 > Plaid token note: `public_token` must be exchanged **immediately** and only once; never replay it.
 
@@ -184,7 +229,7 @@ This project is deliberately lightweight and uses a few well-known tools. Below 
 
 ### 4) Pipedream
 - Workflow A (retrieve-recurring-transactions): Input `{ userId }` → return either `{ tag: "link_token" }` or `{ tag: "recurring_data" }`
-- Workflow B (access-token+recurring-transactions-workflow): Input `{ publicToken, userId }` → exchange the token and return `{ tag: "recurring_data", data: {...} }`
+- Workflow B (access-token+recurring-transactions-workflow): Input `{ publicToken, userId }` → exchange the token, persist it, and return `{ tag: "storage_success", data: "..." }`. The first scan is then served by Workflow A.
 - Environment Variables: 
   - `PLAID_CLIENT_ID`, `PLAID_SECRET`
   - `PLAID_ENV` = `sandbox` | `production`

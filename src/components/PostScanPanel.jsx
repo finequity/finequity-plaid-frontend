@@ -1,0 +1,159 @@
+import * as React from "react";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
+import Divider from "@mui/material/Divider";
+import TextsmsRoundedIcon from "@mui/icons-material/TextsmsRounded";
+import PhoneIphoneRoundedIcon from "@mui/icons-material/PhoneIphoneRounded";
+import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
+import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded";
+
+/**
+ * Panel shown under the subscription list once a scan has results.
+ *
+ * Two jobs:
+ *   1. Reinforce that this portal was a one-time setup — ongoing monitoring and
+ *      communication happen automatically over SMS.
+ *   2. Offer a human: a call with the support team for questions about what the
+ *      scan turned up (headline is stronger right after the first scan).
+ *
+ * The scheduling link comes from REACT_APP_SUPPORT_SCHEDULE_URL. When it isn't
+ * configured the card falls back to the SMS route rather than showing a button
+ * that goes nowhere.
+ */
+
+const SCHEDULE_URL = process.env.REACT_APP_SUPPORT_SCHEDULE_URL || "";
+
+const MONITORING_POINTS = [
+    {
+        icon: <TextsmsRoundedIcon />,
+        text: "We'll text you when a new charge appears, an amount changes, or something looks risky.",
+    },
+    {
+        icon: <PhoneIphoneRoundedIcon />,
+        text: "No need to sign back in — monitoring keeps running whether you open this page again or not.",
+    },
+];
+
+export default function PostScanPanel({ firstScan = false }) {
+    return (
+        <Box
+            sx={{
+                // Spacing is owned by the container (the sidebar stack's gap), so
+                // the panel can sit anywhere without carrying its own margin.
+                bgcolor: "#fff",
+                border: "1px solid #e2e8f0",
+                borderRadius: 3,
+                overflow: "hidden",
+                boxShadow: "0 1px 3px rgba(15,23,42,0.06), 0 4px 16px rgba(15,23,42,0.04)",
+            }}
+        >
+            {/* ── What happens from here (one-time portal → SMS monitoring) ── */}
+            <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2.25 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 15, color: "#0f172a", mb: 0.5 }}>
+                    {firstScan ? "That's your setup done" : "You're being monitored"}
+                </Typography>
+                <Typography sx={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, mb: 1.75 }}>
+                    {firstScan
+                        ? "Your first scan is complete. From here everything happens automatically — you don't need to come back to this page."
+                        : "Everything below stays under watch automatically — you don't need to come back to this page."}
+                </Typography>
+
+                <Stack spacing={1.25}>
+                    {MONITORING_POINTS.map(({ icon, text }) => (
+                        <Box key={text} sx={{ display: "flex", alignItems: "flex-start", gap: 1.25 }}>
+                            <Box
+                                sx={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: "8px",
+                                    bgcolor: "#f0fdf4",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    flexShrink: 0,
+                                    mt: 0.1,
+                                }}
+                            >
+                                {React.cloneElement(icon, { sx: { fontSize: 15, color: "#16a34a" } })}
+                            </Box>
+                            <Typography sx={{ fontSize: 13, color: "#334155", lineHeight: 1.6 }}>
+                                {text}
+                            </Typography>
+                        </Box>
+                    ))}
+                </Stack>
+            </Box>
+
+            <Divider sx={{ borderColor: "#f1f5f9" }} />
+
+            {/* ── Talk to a human about the findings ── */}
+            <Box
+                sx={{
+                    px: { xs: 2, sm: 2.5 },
+                    py: 2.25,
+                    bgcolor: "#f8fafc",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: 2,
+                }}
+            >
+                <Box
+                    sx={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: "12px",
+                        bgcolor: "#eff6ff",
+                        border: "1px solid #bfdbfe",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                    }}
+                >
+                    <SupportAgentRoundedIcon sx={{ fontSize: 22, color: "#1d4ed8" }} />
+                </Box>
+
+                <Box sx={{ flex: "1 1 240px", minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 14, color: "#0f172a", mb: 0.35 }}>
+                        {firstScan
+                            ? "Questions about what we found?"
+                            : "Want to talk through your charges?"}
+                    </Typography>
+                    <Typography sx={{ fontSize: 13, color: "#64748b", lineHeight: 1.6 }}>
+                        {SCHEDULE_URL
+                            ? "Book a short call and our support team will walk you through anything flagged here — what it means and what to do next."
+                            : "Reply to any finEquity text message and our support team will walk you through anything flagged here."}
+                    </Typography>
+                </Box>
+
+                {SCHEDULE_URL && (
+                    <Button
+                        variant="outlined"
+                        href={SCHEDULE_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        startIcon={<EventAvailableRoundedIcon />}
+                        sx={{
+                            flexShrink: 0,
+                            borderRadius: "10px",
+                            fontWeight: 700,
+                            fontSize: 13.5,
+                            textTransform: "none",
+                            px: 2,
+                            py: 1,
+                            color: "#1d4ed8",
+                            borderColor: "#bfdbfe",
+                            bgcolor: "#fff",
+                            "&:hover": { borderColor: "#1d4ed8", bgcolor: "#eff6ff" },
+                        }}
+                    >
+                        Schedule a conversation
+                    </Button>
+                )}
+            </Box>
+        </Box>
+    );
+}

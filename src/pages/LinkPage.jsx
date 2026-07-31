@@ -3,6 +3,11 @@ import PlaidButton from "../components/PlaidButton.jsx";
 import TopBar, { PageHeader } from "../components/TopBar";
 import Footer from "../components/Footer";
 import Subscriptions from "../components/Subscriptions.jsx";
+import OnboardingComplete from "../components/OnboardingComplete.jsx";
+import OnboardingSteps from "../components/OnboardingSteps.jsx";
+import ScanSkipped from "../components/ScanSkipped.jsx";
+import PostScanDialog from "../components/PostScanDialog.jsx";
+import PostScanPanel from "../components/PostScanPanel.jsx";
 import { toRecurringItems } from "../utils/recurring-data-formatter.js";
 import { MOCK_RESPONSE } from "../mocks/recurring-mock-response.js";
 
@@ -21,8 +26,96 @@ import LockRoundedIcon from "@mui/icons-material/LockRounded";
 
 // ─── Mock mode ─────────────────────────────────────────────────────────────────
 // Set to true to bypass the API and use local test data (see ../mocks/recurring-mock-response.js).
+// Mock mode replays the *onboarding* path — first bank connection, setup
+// complete, first scan — rather than dropping straight into the results list,
+// so a demo shows what a brand-new user actually sees.
 // Must remain false in production.
 const USE_MOCK = false;
+
+// How long the demo pauses to stand in for a real network round-trip.
+const DEMO_DELAY_MS = 1400;
+
+// ─── Onboarding stages ─────────────────────────────────────────────────────────
+// The web app is a one-time onboarding portal: connect a bank once, run a first
+// scan, then monitoring continues automatically over SMS. These stages track
+// where in that path the user is, and returning users (whose recurring data is
+// already cached) land straight in RESULTS without any of the setup framing.
+const STAGE = {
+    LOADING: "loading",       // initial /transactions call in flight
+    CONNECT: "connect",       // link token ready — first bank connection
+    ONBOARDED: "onboarded",   // exchange stored the access token; first scan not run yet
+    SCANNING: "scanning",     // first scan in flight
+    SKIPPED: "skipped",       // user opted out of the first scan — results come by SMS
+    RESULTS: "results",       // recurring data on screen
+    MESSAGE: "message",       // nothing to show — expired session / error / no data
+};
+
+const SESSION_EXPIRED_MSG = "Your session has expired. Please reopen this page from the app.";
+// Same 401, but the bank is already linked at this point — say so, or the user
+// reasonably assumes setup failed and tries to connect all over again.
+const SESSION_EXPIRED_AFTER_LINK_MSG =
+    "Your bank is connected and monitoring is on — this page's session just timed out before we could show your results. Reopen it from the app to see them, or wait for your text.";
+const SCAN_PENDING_MSG =
+    "Your first scan is still finishing up on our side. Give it a moment and try again — either way, we'll text you as soon as your results are ready.";
+const SCAN_FAILED_MSG =
+    "We couldn't reach your scan just then. Please try again — your connection is safely in place.";
+
+// Header copy per stage. Onboarding stages carry an eyebrow + step index, which
+// is what makes the first run look and read differently from day-to-day use.
+const headerFor = (stage, firstRun) => {
+    switch (stage) {
+        case STAGE.LOADING:
+            return {
+                title: "Getting things ready",
+                subtitle: "One moment while we check your account.",
+            };
+        case STAGE.CONNECT:
+            return {
+                eyebrow: "Step 1 of 3 · First-time setup",
+                title: "Welcome to finEquity",
+                subtitle:
+                    "Let's connect your bank once.",
+                step: 0,
+            };
+        case STAGE.ONBOARDED:
+            return {
+                eyebrow: "Step 2 of 3 · Setup complete",
+                title: "Your account is connected",
+                subtitle:
+                    "Monitoring is already running. Run your first scan whenever you're ready to see what we found.",
+                step: 1,
+            };
+        case STAGE.SCANNING:
+            return {
+                eyebrow: "Step 2 of 3 · First scan",
+                title: "Scanning your account",
+                subtitle:
+                    "We're reading up to 24 months of outflow transactions to find every recurring charge.",
+                step: 1,
+            };
+        case STAGE.SKIPPED:
+            // No step indicator here: the user opted out of the remaining steps,
+            // so showing them as pending would nag rather than inform.
+            return {
+                eyebrow: "Setup complete",
+                title: "You're all set",
+                subtitle:
+                    "Nothing else is needed from you. Monitoring is running and your results will arrive by text.",
+            };
+        case STAGE.RESULTS:
+            return firstRun
+                ? {
+                    eyebrow: "Step 3 of 3 · First scan complete",
+                    title: "Your first scan results",
+                    subtitle:
+                        "Every recurring charge we found. From here we keep watching automatically and text you when something changes.",
+                    step: 2,
+                }
+                : {};
+        default:
+            return {};
+    }
+};
 
 // ─── API config ────────────────────────────────────────────────────────────────
 // All requests go through the Cloudflare Worker gateway (see ../../worker/):
@@ -52,6 +145,11 @@ const readAuthFromFragment = () => {
 
 // ─── Sidebar: How It Works ─────────────────────────────────────────────────────
 
+// Panel disabled — the onboarding screens now carry this explanation themselves,
+// so the sidebar copy was redundant. Flip to true to bring it back.
+// (Same pattern as SHOW_STICKY_BAR in TopBar.jsx.)
+const SHOW_HOW_IT_WORKS = false;
+
 const HOW_STEPS = [
     {
         color: "#1d4ed8",
@@ -72,6 +170,11 @@ const HOW_STEPS = [
         color: "#1d4ed8",
         title: "Review & act",
         body: "See every subscription's amount, frequency, and next charge — then cancel what you don't need.",
+    },
+    {
+        color: "#16a34a",
+        title: "We keep watching",
+        body: "That's setup done. Monitoring continues automatically and new or risky charges reach you by text — no need to sign back in.",
     },
 ];
 
@@ -295,20 +398,75 @@ function RiskGuidePanel() {
 const SIDEBAR_W = 380;
 const TOP_OFFSET = 88; // AppBar height + 24px breathing room
 
+const Loader = ({ label }) => (
+    <Box
+        sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            py: 14,
+            gap: 2,
+        }}
+    >
+        <Box
+            sx={{
+                width: 44,
+                height: 44,
+                border: "3px solid #dbeafe",
+                borderTopColor: "#1d4ed8",
+                borderRadius: "50%",
+                animation: "spin 0.8s linear infinite",
+            }}
+            role="status"
+            aria-label="Loading"
+        />
+        <Typography sx={{ fontSize: 14, color: "#94a3b8", fontWeight: 500 }}>
+            {label}
+        </Typography>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </Box>
+);
+
+// ── Shared page shell ──────────────────────────────────────────────────────────
+// Module scope on purpose: defined inside the page component it would be a new
+// component type on every render, remounting the whole tree (and the Plaid
+// widget with it) each time a stage changes.
+const PageShell = ({ header, children }) => (
+    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        {/* Strip default document margins so the app sits flush inside the Glide embed. */}
+        <GlobalStyles styles={{ "html, body, #root": { margin: 0, padding: 0 }, body: { overflowX: "hidden" } }} />
+        <TopBar />
+        {header}
+        <Box sx={{ flex: 1, bgcolor: "#f8fafc" }}>
+            {children}
+        </Box>
+        <Footer />
+    </Box>
+);
+
 const LinkPage = () => {
     const [linkToken, setLinkToken] = useState(null);
     // Per-user proof minted by Glide; the Worker rejects any request whose
     // proof is missing, forged, stale, or from an unprovisioned user.
     const { uid, ts, proof } = readAuthFromFragment();
+    const [stage, setStage] = useState(STAGE.LOADING);
     const [message, setMessage] = useState("");
-    const [loading, setLoading] = useState(true);
     const [subs, setSubs] = useState([]);
+    // True once this visit completed the bank connection — drives the first-run
+    // copy (step indicator, "first scan" framing, post-scan CTA).
+    const [firstRun, setFirstRun] = useState(false);
+    // Non-fatal note shown on the onboarding-complete screen when a first scan
+    // couldn't be produced yet.
+    const [scanNotice, setScanNotice] = useState("");
+    // First-scan completion dialog. Opened explicitly at the two points a first
+    // scan can land — never from an effect, so dismissing it is final.
+    const [postScanOpen, setPostScanOpen] = useState(false);
 
-    const fetchFromApi = useCallback(async (attempt = 0) => {
-        if (!uid) return;
-        setLoading(true);
-        setMessage("");
-        try {
+    // Single trip to the Worker for recurring data. Returns { data } on success
+    // or { authExpired: true }; throws on anything else.
+    const requestTransactions = useCallback(async () => {
+        const call = async (attempt) => {
             const res = await fetch(
                 `${WORKER_URL}/transactions?uid=${encodeURIComponent(uid)}` +
                 `&ts=${encodeURIComponent(ts)}&proof=${encodeURIComponent(proof)}`
@@ -316,42 +474,52 @@ const LinkPage = () => {
             if (res.status === 401 && attempt === 0) {
                 // KV eventual consistency right after provisioning — retry once.
                 await new Promise((r) => setTimeout(r, 2000));
-                return fetchFromApi(1);
+                return call(1);
             }
-            if (res.status === 401) {
-                setMessage("Your session has expired. Please reopen this page from the app.");
+            if (res.status === 401) return { authExpired: true };
+            if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+            return { data: await res.json() };
+        };
+        return call(0);
+    }, [uid, ts, proof]);
+
+    // First load: cached recurring data means a returning user (straight to
+    // results); a link token means this is their first bank connection.
+    const loadInitial = useCallback(async () => {
+        setStage(STAGE.LOADING);
+        setMessage("");
+        try {
+            const { authExpired, data } = await requestTransactions();
+            if (authExpired) {
+                setMessage(SESSION_EXPIRED_MSG);
+                setStage(STAGE.MESSAGE);
                 return;
             }
-            if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-            const data = await res.json();
             const tag = data?.response_object?.tag;
 
             if (tag === "recurring_data") {
                 const items = await toRecurringItems(data?.response_object?.data);
                 setSubs(items);
                 setLinkToken(null);
-                setMessage(items.length ? "" : "No recurring transactions found.");
+                setStage(STAGE.RESULTS);
             } else if (tag === "link_token") {
                 setLinkToken(data?.response_object?.data?.link_token);
-                setMessage("");
+                setStage(STAGE.CONNECT);
             } else {
                 setMessage("No data returned.");
+                setStage(STAGE.MESSAGE);
             }
         } catch (err) {
             console.error("Error retrieving recurring data:", err);
             setMessage("Error retrieving data. Please try again.");
-        } finally {
-            setLoading(false);
+            setStage(STAGE.MESSAGE);
         }
-    }, [uid, ts, proof]);
+    }, [requestTransactions]);
 
     useEffect(() => {
-        // ── Mock short-circuit ──────────────────────────────────────────────────
+        // ── Mock short-circuit: replay the onboarding path from the top ─────────
         if (USE_MOCK) {
-            toRecurringItems(MOCK_RESPONSE.response_object.data).then((items) => {
-                setSubs(items);
-                setLoading(false);
-            });
+            setStage(STAGE.CONNECT);
             return;
         }
         // ───────────────────────────────────────────────────────────────────────
@@ -359,74 +527,105 @@ const LinkPage = () => {
         if (!uid || !ts || !proof) {
             console.error("Missing auth fragment (uid/ts/proof)");
             setMessage("Please open this page from the app.");
-            setLoading(false);
+            setStage(STAGE.MESSAGE);
             return;
         }
 
         // No client-side cache or storage: the Worker serves cached recurring
         // data from KV, so every load is a single request either way.
-        fetchFromApi();
-    }, [uid, ts, proof, fetchFromApi]);
+        loadInitial();
+    }, [uid, ts, proof, loadInitial]);
 
-    const handlePlaidData = (items) => {
-        if (Array.isArray(items)) {
-            setSubs(items);
-            setLinkToken(null);
-            setMessage(items.length ? "" : "No recurring transactions found.");
-        }
+    // Exchange came back 200 / "storage_success": the access token is stored but
+    // nothing has been scanned yet. Setup is done — hand over to the
+    // onboarding-complete screen, which runs the first scan on request.
+    const handleLinked = () => {
+        setLinkToken(null);
+        setFirstRun(true);
+        setScanNotice("");
+        setStage(STAGE.ONBOARDED);
     };
 
-    const Loader = () => (
-        <Box
-            sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                py: 14,
-                gap: 2,
-            }}
-        >
-            <Box
-                sx={{
-                    width: 44,
-                    height: 44,
-                    border: "3px solid #dbeafe",
-                    borderTopColor: "#1d4ed8",
-                    borderRadius: "50%",
-                    animation: "spin 0.8s linear infinite",
-                }}
-                role="status"
-                aria-label="Loading"
-            />
-            <Typography sx={{ fontSize: 14, color: "#94a3b8", fontWeight: 500 }}>
-                Loading your subscriptions…
-            </Typography>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </Box>
-    );
+    // User opted out of running the first scan now. Nothing to undo server-side —
+    // the access token is stored and monitoring is independent of this page — so
+    // this only swaps the screen for its confirmation, which still offers the scan.
+    const handleSkipScan = () => {
+        setScanNotice("");
+        setStage(STAGE.SKIPPED);
+    };
 
-    // ── Shared page shell ──────────────────────────────────────────────────────
-    const PageShell = ({ children }) => (
-        <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-            {/* Strip default document margins so the app sits flush inside the Glide embed. */}
-            <GlobalStyles styles={{ "html, body, #root": { margin: 0, padding: 0 }, body: { overflowX: "hidden" } }} />
-            <TopBar />
-            <PageHeader />
-            <Box sx={{ flex: 1, bgcolor: "#f8fafc" }}>
-                {children}
-            </Box>
-            <Footer />
-        </Box>
-    );
+    // Legacy exchange shape: recurring data arrived with the exchange itself.
+    const handlePlaidData = (items) => {
+        if (!Array.isArray(items)) return;
+        setSubs(items);
+        setLinkToken(null);
+        setFirstRun(true);
+        setStage(STAGE.RESULTS);
+        setPostScanOpen(true);
+    };
 
-    // Sidebar is shown while loading (loader appears centre) and once subs exist.
-    // Hidden when the user needs to connect via Plaid (no subs yet, linkToken present)
-    // or when showing a fallback error message.
-    const showSidebar = loading || subs.length > 0;
+    // "Show my subscriptions" — the user's first scan. The access token was
+    // stored moments ago, so a link_token here means the scan isn't ready yet;
+    // that must not bounce them back into connecting a bank a second time.
+    const runFirstScan = useCallback(async () => {
+        setScanNotice("");
+        setStage(STAGE.SCANNING);
+
+        if (USE_MOCK) {
+            await new Promise((r) => setTimeout(r, DEMO_DELAY_MS));
+            setSubs(await toRecurringItems(MOCK_RESPONSE.response_object.data));
+            setStage(STAGE.RESULTS);
+            setPostScanOpen(true);
+            return;
+        }
+
+        try {
+            const { authExpired, data } = await requestTransactions();
+            if (authExpired) {
+                setMessage(SESSION_EXPIRED_AFTER_LINK_MSG);
+                setStage(STAGE.MESSAGE);
+                return;
+            }
+            const tag = data?.response_object?.tag;
+
+            if (tag === "recurring_data") {
+                setSubs(await toRecurringItems(data?.response_object?.data));
+                setStage(STAGE.RESULTS);
+                setPostScanOpen(true);
+            } else {
+                setScanNotice(SCAN_PENDING_MSG);
+                setStage(STAGE.ONBOARDED);
+            }
+        } catch (err) {
+            console.error("Error running first scan:", err);
+            setScanNotice(SCAN_FAILED_MSG);
+            setStage(STAGE.ONBOARDED);
+        }
+    }, [requestTransactions]);
+
+    // Sidebar appears only alongside real results: during loading and scanning it
+    // would be reference material for data that isn't on screen yet, and the setup
+    // screens carry their own explanation.
+    const showSidebar = stage === STAGE.RESULTS;
+
+    const { eyebrow, title, subtitle, step } = headerFor(stage, firstRun);
 
     return (
-        <PageShell>
+        <PageShell
+            header={
+                <PageHeader eyebrow={eyebrow} title={title} subtitle={subtitle}>
+                    {typeof step === "number" && <OnboardingSteps activeStep={step} />}
+                </PageHeader>
+            }
+        >
+            {/* Fires once when the first scan lands; the same points stay
+                available in the sidebar panel after it's dismissed. */}
+            <PostScanDialog
+                open={postScanOpen}
+                onClose={() => setPostScanOpen(false)}
+                items={subs}
+            />
+
             <Box
                 sx={{
                     maxWidth: 1420,
@@ -454,11 +653,18 @@ const LinkPage = () => {
                             alignSelf: "flex-start",
                         }}
                     >
-                        <Box sx={{ flex: { sm: 1, lg: "none" } }}>
-                            <HowItWorksPanel />
-                        </Box>
+                        {SHOW_HOW_IT_WORKS && (
+                            <Box sx={{ flex: { sm: 1, lg: "none" } }}>
+                                <HowItWorksPanel />
+                            </Box>
+                        )}
                         <Box sx={{ flex: { sm: 1, lg: "none" } }}>
                             <RiskGuidePanel />
+                        </Box>
+                        {/* Post-scan recap + support CTA: sits with the reference
+                            material rather than below the list. */}
+                        <Box sx={{ flex: { sm: 1, lg: "none" } }}>
+                            <PostScanPanel firstScan={firstRun} />
                         </Box>
                     </Box>
                 )}
@@ -478,13 +684,31 @@ const LinkPage = () => {
                         alignSelf: "flex-start",
                     }}
                 >
-                    {loading ? (
-                        <Loader />
-                    ) : subs.length > 0 ? (
+                    {stage === STAGE.LOADING ? (
+                        <Loader label="Loading your subscriptions…" />
+                    ) : stage === STAGE.SCANNING ? (
+                        <Loader label="Running your first scan…" />
+                    ) : stage === STAGE.RESULTS ? (
                         <Subscriptions items={subs} />
-                    ) : linkToken ? (
+                    ) : stage === STAGE.ONBOARDED ? (
+                        <OnboardingComplete
+                            onRetrieve={runFirstScan}
+                            onSkip={handleSkipScan}
+                            notice={scanNotice}
+                        />
+                    ) : stage === STAGE.SKIPPED ? (
+                        <ScanSkipped onRetrieve={runFirstScan} />
+                    ) : stage === STAGE.CONNECT ? (
                         <Box sx={{ display: "grid", placeItems: "center", px: 2, py: 6 }}>
-                            <PlaidButton linkToken={linkToken} uid={uid} ts={ts} proof={proof} onData={handlePlaidData} />
+                            <PlaidButton
+                                linkToken={linkToken}
+                                uid={uid}
+                                ts={ts}
+                                proof={proof}
+                                demo={USE_MOCK}
+                                onLinked={handleLinked}
+                                onData={handlePlaidData}
+                            />
                         </Box>
                     ) : (
                         <Box
