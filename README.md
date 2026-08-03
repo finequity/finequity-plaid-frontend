@@ -178,9 +178,13 @@ const cacheKey = (uid) => `recurring_cache_v1:${uid}`;
 ## Running the App
 
 ### Prerequisites
-- Node.js 18+ and npm
+- Node.js 18+ and npm — **plus Node 22+ for `wrangler dev`**, which refuses to
+  start on anything older. `nvm use 22` in the Worker terminal is enough; the
+  React app is happy on 18.
 - A Plaid account
 - Pipedream account and workflow setups for **retrieving subscription data** and **exchanging public token for access token**
+- [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+  for the tunnelled setup below (`brew install cloudflared`)
 
 ### Clone repository
 ```bash
@@ -193,9 +197,83 @@ npm install
 ```
 
 ### Start development server
+
+Two terminals — the Worker proxy and the React app:
+
 ```bash
-npm start
+cd worker && npx wrangler dev     # http://localhost:8787  (needs Node 22+)
+npm start                         # http://localhost:3000
 ```
+
+With `REACT_APP_WORKER_URL=http://localhost:8787` in `.env` and
+`ALLOWED_ORIGIN=http://localhost:3000` in `worker/.dev.vars`, that is the whole
+setup. The app still needs a signed `#uid&ts&proof` fragment to get past the
+session check — see [Local testing](worker/README.md#local-testing) in the
+Worker README for provisioning a test user and minting one.
+
+### Serving over a cloudflared tunnel
+
+Plain `localhost` is fine for working on the UI. You need public **https**
+origins in two cases: previewing the app **inside the Glide iframe**, and
+**Plaid Link in production mode**. `cloudflared` quick tunnels give you both
+without deploying.
+
+Both ports get their own tunnel — the app is served from one, and an https page
+cannot call a `http://localhost` Worker (browsers block it as mixed content),
+so the Worker needs the other.
+
+**1. Open both tunnels first**, each in its own terminal. Do this before editing
+config: the URLs are random per run, and knowing them up front saves restarting
+the servers to pick up changed values.
+
+```bash
+cloudflared tunnel --url http://localhost:8787   # → Worker  tunnel URL
+cloudflared tunnel --url http://localhost:3000   # → App     tunnel URL
+```
+
+Each prints a `https://<random-words>.trycloudflare.com` URL. Expect a
+connection error in the log until the service behind it is up in step 3 — the
+tunnel itself is fine.
+
+**2. Point the two sides at each other.**
+
+| File | Key | Value |
+| --- | --- | --- |
+| `.env` | `REACT_APP_WORKER_URL` | the **Worker** tunnel URL (`:8787`) |
+| `worker/.dev.vars` | `ALLOWED_ORIGIN` | the **App** tunnel URL (`:3000`) |
+
+`ALLOWED_ORIGIN` is what the Worker sends back as
+`Access-Control-Allow-Origin`, so it must match the origin the browser loads the
+app from exactly — no trailing slash. Get it wrong and every call fails CORS in
+the browser while `curl` still works.
+
+**3. Start both servers** as in the previous section. CRA inlines
+`REACT_APP_*` at startup, so `npm start` has to come *after* step 2 — restart it
+after any change to `.env`.
+
+**4. Mint a proof URL against the tunnel origin** — pass it as the third
+argument so the fragment lands on the tunnelled app rather than `localhost`:
+
+```bash
+cd worker
+node dev-url.mjs <userSecret> <uid> https://<app-tunnel>.trycloudflare.com
+```
+
+Open that URL, or drop it into Glide's webview to test the embedded path. The
+proof is valid for **15 minutes** — re-run to mint a fresh one.
+
+**Notes**
+- Quick tunnel URLs change on **every** restart, so steps 1–2 repeat each
+  session. Restart `cloudflared` and you must update the config and restart the
+  server on that side.
+- If hot reload doesn't reconnect over the tunnel, start the app with
+  `WDS_SOCKET_PORT=443 npm start` — the dev-server websocket otherwise tries to
+  reach port 3000 on the tunnel host. Only affects hot reload, not the app.
+- No `DANGEROUSLY_DISABLE_HOST_CHECK` needed: this project sets no CRA `proxy`,
+  so the dev server already accepts requests for any `Host`.
+- **Before building for Netlify**, restore the deployed Worker URL in `.env`
+  (`https://finequity-plaid-proxy.dev-bernard.workers.dev`) — a committed
+  tunnel URL is dead the moment the tunnel closes.
 
 ### Build (production)
 ```bash

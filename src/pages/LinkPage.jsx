@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import PlaidButton from "../components/PlaidButton.jsx";
 import TopBar, { PageHeader } from "../components/TopBar";
 import Footer from "../components/Footer";
@@ -34,6 +34,13 @@ const USE_MOCK = false;
 
 // How long the demo pauses to stand in for a real network round-trip.
 const DEMO_DELAY_MS = 1400;
+
+// How long the first-scan results stay uninterrupted before the completion
+// dialog appears. The dialog asks the user to act ("view my subscriptions",
+// "schedule a conversation"), which only makes sense once they've had time to
+// read what was actually found — so it arrives as a nudge, not as a curtain
+// over the results it's describing.
+const POST_SCAN_DIALOG_DELAY_MS = 3 * 60 * 1000;
 
 // ─── Onboarding stages ─────────────────────────────────────────────────────────
 // The web app is a one-time onboarding portal: connect a bank once, run a first
@@ -459,9 +466,26 @@ const LinkPage = () => {
     // Non-fatal note shown on the onboarding-complete screen when a first scan
     // couldn't be produced yet.
     const [scanNotice, setScanNotice] = useState("");
-    // First-scan completion dialog. Opened explicitly at the two points a first
-    // scan can land — never from an effect, so dismissing it is final.
+    // First-scan completion dialog. Scheduled explicitly at the points a first
+    // scan can land — never from an effect, so dismissing it is final. Because
+    // those points are all downstream of a bank connection, a returning user
+    // landing straight in RESULTS never sees it.
     const [postScanOpen, setPostScanOpen] = useState(false);
+    const postScanTimer = useRef(null);
+
+    // Hand the user their results first; the dialog follows a beat later.
+    const schedulePostScanDialog = useCallback(() => {
+        clearTimeout(postScanTimer.current);
+        postScanTimer.current = setTimeout(
+            () => setPostScanOpen(true),
+            // A three-minute wait would hide the dialog entirely from the demo
+            // walkthrough, whose whole point is showing the path end to end.
+            USE_MOCK ? DEMO_DELAY_MS : POST_SCAN_DIALOG_DELAY_MS
+        );
+    }, []);
+
+    // Drop a pending timer on unmount so it can't fire into a gone component.
+    useEffect(() => () => clearTimeout(postScanTimer.current), []);
 
     // Single trip to the Worker for recurring data. Returns { data } on success
     // or { authExpired: true }; throws on anything else.
@@ -561,7 +585,7 @@ const LinkPage = () => {
         setLinkToken(null);
         setFirstRun(true);
         setStage(STAGE.RESULTS);
-        setPostScanOpen(true);
+        schedulePostScanDialog();
     };
 
     // "Show my subscriptions" — the user's first scan. The access token was
@@ -575,7 +599,7 @@ const LinkPage = () => {
             await new Promise((r) => setTimeout(r, DEMO_DELAY_MS));
             setSubs(await toRecurringItems(MOCK_RESPONSE.response_object.data));
             setStage(STAGE.RESULTS);
-            setPostScanOpen(true);
+            schedulePostScanDialog();
             return;
         }
 
@@ -591,7 +615,7 @@ const LinkPage = () => {
             if (tag === "recurring_data") {
                 setSubs(await toRecurringItems(data?.response_object?.data));
                 setStage(STAGE.RESULTS);
-                setPostScanOpen(true);
+                schedulePostScanDialog();
             } else {
                 setScanNotice(SCAN_PENDING_MSG);
                 setStage(STAGE.ONBOARDED);
@@ -601,7 +625,7 @@ const LinkPage = () => {
             setScanNotice(SCAN_FAILED_MSG);
             setStage(STAGE.ONBOARDED);
         }
-    }, [requestTransactions]);
+    }, [requestTransactions, schedulePostScanDialog]);
 
     // Sidebar appears only alongside real results: during loading and scanning it
     // would be reference material for data that isn't on screen yet, and the setup
@@ -618,8 +642,8 @@ const LinkPage = () => {
                 </PageHeader>
             }
         >
-            {/* Fires once when the first scan lands; the same points stay
-                available in the sidebar panel after it's dismissed. */}
+            {/* Fires once, a few minutes after the first scan lands; the same
+                points stay available in the sidebar panel after it's dismissed. */}
             <PostScanDialog
                 open={postScanOpen}
                 onClose={() => setPostScanOpen(false)}
