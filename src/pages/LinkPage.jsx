@@ -682,13 +682,15 @@ const LinkPage = () => {
                                 <HowItWorksPanel />
                             </Box>
                         )}
-                        <Box sx={{ flex: { sm: 1, lg: "none" } }}>
-                            <RiskGuidePanel />
-                        </Box>
                         {/* Post-scan recap + support CTA: sits with the reference
-                            material rather than below the list. */}
+                            material rather than below the list, and above the risk
+                            guide — it's what the user acts on, where the guide is
+                            there to be consulted once something needs decoding. */}
                         <Box sx={{ flex: { sm: 1, lg: "none" } }}>
                             <PostScanPanel firstScan={firstRun} />
+                        </Box>
+                        <Box sx={{ flex: { sm: 1, lg: "none" } }}>
+                            <RiskGuidePanel />
                         </Box>
                     </Box>
                 )}

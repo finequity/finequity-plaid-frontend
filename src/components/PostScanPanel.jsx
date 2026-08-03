@@ -18,6 +18,11 @@ import EventAvailableRoundedIcon from "@mui/icons-material/EventAvailableRounded
  *   2. Offer a human: a call with the support team for questions about what the
  *      scan turned up (headline is stronger right after the first scan).
  *
+ * Job 1 is only news to someone who just finished setup, so it renders for
+ * firstScan only. A returning user gets the support offer by itself — repeating
+ * "here's what happens next" to someone already living with the answer buries
+ * the one thing on this card they can still act on.
+ *
  * The scheduling link comes from REACT_APP_SUPPORT_SCHEDULE_URL. When it isn't
  * configured the card falls back to the SMS route rather than showing a button
  * that goes nowhere.
@@ -50,50 +55,56 @@ export default function PostScanPanel({ firstScan = false }) {
             }}
         >
             {/* ── What happens from here (one-time portal → SMS monitoring) ── */}
-            <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2.25 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: 15, color: "#0f172a", mb: 0.5 }}>
-                    {firstScan ? "That's your setup done" : "You're being monitored"}
-                </Typography>
-                <Typography sx={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, mb: 1.75 }}>
-                    {firstScan
-                        ? "Your first scan is complete. From here everything happens automatically — you don't need to come back to this page."
-                        : "Everything below stays under watch automatically — you don't need to come back to this page."}
-                </Typography>
+            {firstScan && (
+                <>
+                    <Box sx={{ px: { xs: 2, sm: 2.5 }, py: 2.25 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: 15, color: "#0f172a", mb: 0.5 }}>
+                            That's your setup done
+                        </Typography>
+                        <Typography sx={{ fontSize: 13, color: "#64748b", lineHeight: 1.6, mb: 1.75 }}>
+                            Your first scan is complete. From here everything happens
+                            automatically — you don't need to come back to this page.
+                        </Typography>
 
-                <Stack spacing={1.25}>
-                    {MONITORING_POINTS.map(({ icon, text }) => (
-                        <Box key={text} sx={{ display: "flex", alignItems: "flex-start", gap: 1.25 }}>
-                            <Box
-                                sx={{
-                                    width: 28,
-                                    height: 28,
-                                    borderRadius: "8px",
-                                    bgcolor: "#f0fdf4",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    flexShrink: 0,
-                                    mt: 0.1,
-                                }}
-                            >
-                                {React.cloneElement(icon, { sx: { fontSize: 15, color: "#16a34a" } })}
-                            </Box>
-                            <Typography sx={{ fontSize: 13, color: "#334155", lineHeight: 1.6 }}>
-                                {text}
-                            </Typography>
-                        </Box>
-                    ))}
-                </Stack>
-            </Box>
+                        <Stack spacing={1.25}>
+                            {MONITORING_POINTS.map(({ icon, text }) => (
+                                <Box key={text} sx={{ display: "flex", alignItems: "flex-start", gap: 1.25 }}>
+                                    <Box
+                                        sx={{
+                                            width: 28,
+                                            height: 28,
+                                            borderRadius: "8px",
+                                            bgcolor: "#f0fdf4",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            flexShrink: 0,
+                                            mt: 0.1,
+                                        }}
+                                    >
+                                        {React.cloneElement(icon, { sx: { fontSize: 15, color: "#16a34a" } })}
+                                    </Box>
+                                    <Typography sx={{ fontSize: 13, color: "#334155", lineHeight: 1.6 }}>
+                                        {text}
+                                    </Typography>
+                                </Box>
+                            ))}
+                        </Stack>
+                    </Box>
 
-            <Divider sx={{ borderColor: "#f1f5f9" }} />
+                    <Divider sx={{ borderColor: "#f1f5f9" }} />
+                </>
+            )}
 
             {/* ── Talk to a human about the findings ── */}
             <Box
                 sx={{
                     px: { xs: 2, sm: 2.5 },
                     py: 2.25,
-                    bgcolor: "#f8fafc",
+                    // Grey reads as a footer under the recap above it. Standing
+                    // alone there's nothing to be a footer to, so it takes the
+                    // plain card white the other sidebar panels use.
+                    bgcolor: firstScan ? "#f8fafc" : "#fff",
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
@@ -147,13 +158,32 @@ export default function PostScanPanel({ firstScan = false }) {
                             color: "#1d4ed8",
                             borderColor: "#bfdbfe",
                             bgcolor: "#fff",
-                            "&:hover": { borderColor: "#1d4ed8", bgcolor: "#eff6ff" },
+                            // A ring that swells out of the button every few
+                            // seconds. Long cycle and no movement of the button
+                            // itself, so it reads as a quiet flicker at the edge
+                            // of vision rather than something demanding a click.
+                            animation: "fe-cta-pulse 3.6s ease-out infinite",
+                            "&:hover": {
+                                borderColor: "#1d4ed8",
+                                bgcolor: "#eff6ff",
+                                // Noticed — stop asking.
+                                animation: "none",
+                            },
+                            "@media (prefers-reduced-motion: reduce)": { animation: "none" },
                         }}
                     >
                         Schedule a conversation
                     </Button>
                 )}
             </Box>
+
+            <style>{`
+                @keyframes fe-cta-pulse {
+                    0%   { box-shadow: 0 0 0 0 rgba(29,78,216,0.26); }
+                    55%  { box-shadow: 0 0 0 9px rgba(29,78,216,0); }
+                    100% { box-shadow: 0 0 0 0 rgba(29,78,216,0); }
+                }
+            `}</style>
         </Box>
     );
 }
