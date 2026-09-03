@@ -6,7 +6,7 @@ import Subscriptions from "../components/Subscriptions.jsx";
 import OnboardingComplete from "../components/OnboardingComplete.jsx";
 import OnboardingSteps from "../components/OnboardingSteps.jsx";
 import ScanSkipped from "../components/ScanSkipped.jsx";
-import PostScanDialog from "../components/PostScanDialog.jsx";
+import PostScanDialog, { HAS_SCHEDULE_URL } from "../components/PostScanDialog.jsx";
 import PostScanPanel from "../components/PostScanPanel.jsx";
 import { toRecurringItems } from "../utils/recurring-data-formatter.js";
 import { MOCK_RESPONSE } from "../mocks/recurring-mock-response.js";
@@ -35,12 +35,12 @@ const USE_MOCK = false;
 // How long the demo pauses to stand in for a real network round-trip.
 const DEMO_DELAY_MS = 1400;
 
-// How long the first-scan results stay uninterrupted before the completion
-// dialog appears. The dialog asks the user to act ("view my subscriptions",
-// "schedule a conversation"), which only makes sense once they've had time to
-// read what was actually found — so it arrives as a nudge, not as a curtain
-// over the results it's describing.
-const POST_SCAN_DIALOG_DELAY_MS = 3 * 60 * 1000;
+// How long the user has the results to themselves before the support dialog
+// offers a call. Asking someone to talk it through only makes sense once
+// they've read what was found, so it arrives as a nudge rather than as a
+// curtain over the results it's describing. Counted from the moment they
+// dismiss the scan dialog — that's when the viewing actually starts.
+const SUPPORT_DIALOG_DELAY_MS = 3 * 60 * 1000;
 
 // ─── Onboarding stages ─────────────────────────────────────────────────────────
 // The web app is a one-time onboarding portal: connect a bank once, run a first
@@ -466,26 +466,37 @@ const LinkPage = () => {
     // Non-fatal note shown on the onboarding-complete screen when a first scan
     // couldn't be produced yet.
     const [scanNotice, setScanNotice] = useState("");
-    // First-scan completion dialog. Scheduled explicitly at the points a first
-    // scan can land — never from an effect, so dismissing it is final. Because
-    // those points are all downstream of a bank connection, a returning user
-    // landing straight in RESULTS never sees it.
+    // The two first-scan dialogs. Both are opened explicitly — never from an
+    // effect — so dismissing either is final. Because every point that opens the
+    // first one is downstream of a bank connection, a returning user landing
+    // straight in RESULTS sees neither.
+    //
+    //   1. postScanOpen  — the moment recurring data lands, before the list is
+    //                      read. Its button hands over to the results.
+    //   2. supportOpen   — SUPPORT_DIALOG_DELAY_MS after that hand-over, once
+    //                      the user has actually had time with the list.
     const [postScanOpen, setPostScanOpen] = useState(false);
-    const postScanTimer = useRef(null);
+    const [supportOpen, setSupportOpen] = useState(false);
+    const supportTimer = useRef(null);
 
-    // Hand the user their results first; the dialog follows a beat later.
-    const schedulePostScanDialog = useCallback(() => {
-        clearTimeout(postScanTimer.current);
-        postScanTimer.current = setTimeout(
-            () => setPostScanOpen(true),
+    const openPostScanDialog = useCallback(() => setPostScanOpen(true), []);
+
+    // Dismissing the scan dialog is what starts the viewing, so the support
+    // offer is timed from here rather than from when the data arrived.
+    const closePostScanDialog = useCallback(() => {
+        setPostScanOpen(false);
+        if (!HAS_SCHEDULE_URL) return; // nothing to offer — don't interrupt at all
+        clearTimeout(supportTimer.current);
+        supportTimer.current = setTimeout(
+            () => setSupportOpen(true),
             // A three-minute wait would hide the dialog entirely from the demo
             // walkthrough, whose whole point is showing the path end to end.
-            USE_MOCK ? DEMO_DELAY_MS : POST_SCAN_DIALOG_DELAY_MS
+            USE_MOCK ? DEMO_DELAY_MS : SUPPORT_DIALOG_DELAY_MS
         );
     }, []);
 
     // Drop a pending timer on unmount so it can't fire into a gone component.
-    useEffect(() => () => clearTimeout(postScanTimer.current), []);
+    useEffect(() => () => clearTimeout(supportTimer.current), []);
 
     // Single trip to the Worker for recurring data. Returns { data } on success
     // or { authExpired: true }; throws on anything else.
@@ -585,7 +596,7 @@ const LinkPage = () => {
         setLinkToken(null);
         setFirstRun(true);
         setStage(STAGE.RESULTS);
-        schedulePostScanDialog();
+        openPostScanDialog();
     };
 
     // "Show my subscriptions" — the user's first scan. The access token was
@@ -599,7 +610,7 @@ const LinkPage = () => {
             await new Promise((r) => setTimeout(r, DEMO_DELAY_MS));
             setSubs(await toRecurringItems(MOCK_RESPONSE.response_object.data));
             setStage(STAGE.RESULTS);
-            schedulePostScanDialog();
+            openPostScanDialog();
             return;
         }
 
@@ -615,7 +626,7 @@ const LinkPage = () => {
             if (tag === "recurring_data") {
                 setSubs(await toRecurringItems(data?.response_object?.data));
                 setStage(STAGE.RESULTS);
-                schedulePostScanDialog();
+                openPostScanDialog();
             } else {
                 setScanNotice(SCAN_PENDING_MSG);
                 setStage(STAGE.ONBOARDED);
@@ -625,7 +636,7 @@ const LinkPage = () => {
             setScanNotice(SCAN_FAILED_MSG);
             setStage(STAGE.ONBOARDED);
         }
-    }, [requestTransactions, schedulePostScanDialog]);
+    }, [requestTransactions, openPostScanDialog]);
 
     // Sidebar appears only alongside real results: during loading and scanning it
     // would be reference material for data that isn't on screen yet, and the setup
@@ -642,11 +653,20 @@ const LinkPage = () => {
                 </PageHeader>
             }
         >
-            {/* Fires once, a few minutes after the first scan lands; the same
-                points stay available in the sidebar panel after it's dismissed. */}
+            {/* Fires the moment the first scan lands. Its button is the way
+                through to the results below. */}
             <PostScanDialog
                 open={postScanOpen}
-                onClose={() => setPostScanOpen(false)}
+                onClose={closePostScanDialog}
+                items={subs}
+            />
+
+            {/* Follows a few minutes into reading the list. The same offer stays
+                available in the sidebar panel after it's dismissed. */}
+            <PostScanDialog
+                variant="support"
+                open={supportOpen}
+                onClose={() => setSupportOpen(false)}
                 items={subs}
             />
 
