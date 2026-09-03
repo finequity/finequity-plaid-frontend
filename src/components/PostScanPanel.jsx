@@ -158,17 +158,26 @@ export default function PostScanPanel({ firstScan = false }) {
                             color: "#1d4ed8",
                             borderColor: "#bfdbfe",
                             bgcolor: "#fff",
-                            // A ring that swells out of the button every few
-                            // seconds. Long cycle and no movement of the button
-                            // itself, so it reads as a quiet flicker at the edge
-                            // of vision rather than something demanding a click.
-                            animation: "fe-cta-pulse 3.6s ease-out infinite",
+                            // Two rings swelling out of the button on a short
+                            // cycle, the button itself breathing with them. This
+                            // is the one thing on the page a user can still act
+                            // on after the scan, so it asks out loud rather than
+                            // flickering at the edge of vision.
+                            //
+                            // Both effects are box-shadow and transform only —
+                            // no layout, no repaint of anything around it — and
+                            // they share a cycle length so the ring always
+                            // leaves at the top of the breath.
+                            animation:
+                                "fe-cta-pulse 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite, " +
+                                "fe-cta-breathe 2.4s ease-in-out infinite",
                             "&:hover": {
                                 borderColor: "#1d4ed8",
                                 bgcolor: "#eff6ff",
                                 // Noticed — stop asking.
                                 animation: "none",
                             },
+                            "&:focus-visible": { animation: "none" },
                             "@media (prefers-reduced-motion: reduce)": { animation: "none" },
                         }}
                     >
@@ -178,10 +187,34 @@ export default function PostScanPanel({ firstScan = false }) {
             </Box>
 
             <style>{`
+                /* Two rings, the second trailing the first by ~25% of the cycle,
+                   so the button reads as pushing them out rather than blinking. */
                 @keyframes fe-cta-pulse {
-                    0%   { box-shadow: 0 0 0 0 rgba(29,78,216,0.26); }
-                    55%  { box-shadow: 0 0 0 9px rgba(29,78,216,0); }
-                    100% { box-shadow: 0 0 0 0 rgba(29,78,216,0); }
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(29,78,216,0.55),
+                                    0 0 0 0 rgba(29,78,216,0);
+                    }
+                    25% {
+                        box-shadow: 0 0 0 8px rgba(29,78,216,0.14),
+                                    0 0 0 0 rgba(29,78,216,0.4);
+                    }
+                    55% {
+                        box-shadow: 0 0 0 16px rgba(29,78,216,0),
+                                    0 0 0 10px rgba(29,78,216,0.1);
+                    }
+                    80%, 100% {
+                        box-shadow: 0 0 0 16px rgba(29,78,216,0),
+                                    0 0 0 18px rgba(29,78,216,0);
+                    }
+                }
+
+                /* A shallow swell timed to the first ring. Small enough that
+                   nothing around it appears to move, big enough to catch a
+                   glance from across the page. */
+                @keyframes fe-cta-breathe {
+                    0%, 100% { transform: scale(1); }
+                    22%      { transform: scale(1.045); }
+                    60%      { transform: scale(0.998); }
                 }
             `}</style>
         </Box>
