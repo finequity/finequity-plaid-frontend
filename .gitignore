@@ -27,3 +27,7 @@ yarn-error.log*
 worker/.dev.vars
 worker/node_modules
 worker/.wrangler
+
+# scripts/dev.sh working dir. Holds a copy of worker/.dev.vars and wrangler's
+# request log (which contains PROVISION_PATH_KEY) — never commit it.
+/.dev-run
